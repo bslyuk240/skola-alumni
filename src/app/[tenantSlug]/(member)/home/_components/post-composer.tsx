@@ -17,6 +17,7 @@ interface CloudinarySignedParams {
 export function PostComposer({ tenantSlug }: { tenantSlug: string }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [content, setContent] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -70,6 +71,7 @@ export function PostComposer({ tenantSlug }: { tenantSlug: string }) {
       setContent("");
       setImageFile(null);
       setImagePreview(null);
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
       router.refresh();
     } catch {
       setErrorMessage("Couldn't publish your post. Please try again.");
@@ -90,11 +92,16 @@ export function PostComposer({ tenantSlug }: { tenantSlug: string }) {
       )}
 
       <textarea
+        ref={textareaRef}
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => {
+          setContent(e.target.value);
+          e.target.style.height = "auto";
+          e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+        }}
         placeholder="Share an update with your alumni community..."
-        rows={3}
-        className="input resize-none"
+        rows={1}
+        className="input resize-none overflow-y-auto"
       />
 
       {imagePreview && (

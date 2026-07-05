@@ -1,7 +1,20 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
+
+// Runs before hydration so the correct theme is applied on first paint — avoids a flash of the
+// wrong theme, since ThemeProvider's own effect only runs after React mounts.
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    var theme = localStorage.getItem("skola-theme") || "light";
+    var isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", isDark);
+  } catch (e) {}
+})();
+`;
 
 const inter = Inter({
   variable: "--font-inter",
@@ -23,8 +36,11 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" className={`${inter.variable} h-full antialiased`}>
+        <head>
+          <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        </head>
         <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
-          {children}
+          <ThemeProvider>{children}</ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

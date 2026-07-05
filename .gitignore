@@ -49,3 +49,6 @@ next-env.d.ts
 
 # local-only Claude Code permission overrides (shared launch.json config is fine to commit)
 /.claude/settings.local.json
+
+.vercel
+.env*

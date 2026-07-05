@@ -62,6 +62,36 @@
 
   --background: var(--color-white);
   --foreground: var(--color-neutral-900);
+
+  /* Declares that this page manages its own theming — stops mobile browsers/WebViews from
+     auto-inverting colors via their own "forced dark theme" heuristics. */
+  color-scheme: light;
+}
+
+/* Dark theme — overrides the same tokens every component already uses (bg-white, text-neutral-900,
+   border-neutral-100, etc.), so no component styling needs to change for dark mode to apply. */
+.dark {
+  color-scheme: dark;
+
+  --color-primary-100: #16263f;
+
+  --color-secondary-100: #2a2210;
+
+  --color-neutral-900: #f1f5f9;
+  --color-neutral-700: #cbd5e1;
+  --color-neutral-500: #94a3b8;
+  --color-neutral-300: #475569;
+  --color-neutral-100: #1e293b;
+  --color-neutral-50: #0f172a;
+  --color-white: #16202f;
+
+  --color-success-100: #0f2e1c;
+  --color-error-100: #3a1414;
+  --color-warning-100: #362a0a;
+  --color-info-100: #0c2536;
+
+  --background: var(--color-neutral-50);
+  --foreground: var(--color-neutral-900);
 }
 
 @theme inline {

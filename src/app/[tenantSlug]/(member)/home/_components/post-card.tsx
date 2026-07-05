@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Heart, MessageCircle, Flag } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
 
@@ -13,6 +14,7 @@ export interface PostComment {
 
 export interface PostCardData {
   id: string;
+  authorId: string;
   authorName: string;
   authorAvatarUrl: string | null;
   type: "POST" | "BUSINESS_ADVERT";
@@ -76,7 +78,10 @@ export function PostCard({ tenantSlug, post }: { tenantSlug: string; post: PostC
   return (
     <article className="flex flex-col gap-3 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+        <Link
+          href={`/${tenantSlug}/profile/${post.authorId}`}
+          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-100 text-xs font-semibold text-primary-700"
+        >
           {post.authorAvatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={post.authorAvatarUrl} alt={post.authorName} className="h-full w-full object-cover" />
@@ -87,9 +92,11 @@ export function PostCard({ tenantSlug, post }: { tenantSlug: string; post: PostC
               .join("")
               .slice(0, 2)
           )}
-        </div>
+        </Link>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-neutral-900">{post.authorName}</p>
+          <Link href={`/${tenantSlug}/profile/${post.authorId}`} className="truncate text-sm font-semibold text-neutral-900 hover:underline">
+            {post.authorName}
+          </Link>
           <p className="text-xs text-neutral-500">{post.createdAtLabel}</p>
         </div>
         {post.type === "BUSINESS_ADVERT" && (

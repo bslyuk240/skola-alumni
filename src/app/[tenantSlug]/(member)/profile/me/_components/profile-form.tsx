@@ -4,6 +4,7 @@ import { useState, useRef, type FormEvent } from "react";
 import { ImagePlus } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
 import { Toggle } from "@/components/ui/toggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface PrivacySettings {
   show_phone: boolean;
@@ -16,6 +17,7 @@ interface PrivacySettings {
 }
 
 interface ProfileData {
+  email: string;
   firstName: string;
   lastName: string;
   avatarUrl: string | null;
@@ -174,6 +176,10 @@ export function ProfileForm({ initial }: { initial: ProfileData }) {
 
         <section className="flex flex-col gap-3 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-neutral-900">Basic Identity</h2>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700">Email</span>
+            <input value={form.email} disabled className="input cursor-not-allowed opacity-70" />
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <TextField label="First Name" value={form.firstName} onChange={(v) => update("firstName", v)} />
             <TextField label="Last Name" value={form.lastName} onChange={(v) => update("lastName", v)} />
@@ -208,6 +214,11 @@ export function ProfileForm({ initial }: { initial: ProfileData }) {
             <TextField label="City" value={form.locationCity} onChange={(v) => update("locationCity", v)} />
             <TextField label="Country" value={form.locationCountry} onChange={(v) => update("locationCountry", v)} />
           </div>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-neutral-900">Appearance</h2>
+          <ThemeToggle />
         </section>
 
         <section className="flex flex-col gap-1 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">

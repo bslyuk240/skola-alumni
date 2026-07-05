@@ -64,6 +64,7 @@ async function getFeedPosts(tenantId: string, currentUserId: string | null): Pro
 
     return {
       id: row.id,
+      authorId: row.authorId,
       authorName: `${row.firstName} ${row.lastName}`,
       authorAvatarUrl: row.avatarUrl,
       type: row.type as "POST" | "BUSINESS_ADVERT",
