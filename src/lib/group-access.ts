@@ -15,6 +15,16 @@ export async function getTenantGroup(tenantSlug: string, groupSlug: string) {
   return { tenant, group };
 }
 
+/** Verifies the user holds an APPROVED group membership, regardless of group role. */
+export async function getApprovedGroupMembership(userId: string, groupId: string) {
+  const membership = await db.query.groupMemberships.findFirst({
+    where: and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, userId)),
+  });
+
+  if (!membership || membership.status !== "APPROVED") return null;
+  return membership;
+}
+
 /** Verifies the user holds an APPROVED group membership with one of the allowed group roles. */
 export async function getAuthorizedGroupMembership(
   userId: string,

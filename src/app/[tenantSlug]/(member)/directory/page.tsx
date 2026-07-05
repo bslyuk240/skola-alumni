@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { tenants, tenantMemberships, profiles, users } from "@/db/schema";
@@ -101,7 +102,7 @@ export default async function DirectoryPage({
   const entries = await getDirectoryEntries(tenant.id, q ?? "");
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
       <h1 className="text-lg font-semibold text-neutral-900">Member Directory</h1>
       <DirectorySearch initialQuery={q ?? ""} />
 
@@ -119,7 +120,10 @@ export default async function DirectoryPage({
               key={entry.userId}
               className="flex items-center gap-3 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm"
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-100 text-sm font-semibold text-primary-700">
+              <Link
+                href={`/${tenantSlug}/profile/${entry.userId}`}
+                className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-100 text-sm font-semibold text-primary-700"
+              >
                 {entry.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={entry.avatarUrl} alt={entry.fullName} className="h-full w-full object-cover" />
@@ -130,10 +134,12 @@ export default async function DirectoryPage({
                     .join("")
                     .slice(0, 2)
                 )}
-              </div>
+              </Link>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-neutral-900">
-                  {entry.fullName}
+                  <Link href={`/${tenantSlug}/profile/${entry.userId}`} className="hover:underline">
+                    {entry.fullName}
+                  </Link>
                   {entry.graduationYear && (
                     <span className="ml-2 text-xs font-medium text-neutral-500">
                       Class of {entry.graduationYear}
@@ -161,9 +167,12 @@ export default async function DirectoryPage({
                   href={`https://wa.me/${entry.whatsappPhone.replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 rounded-md bg-success-100 px-3 py-1.5 text-xs font-medium text-success-700 hover:bg-success-100/70"
+                  aria-label="Message on WhatsApp"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success-100 text-success-700 hover:bg-success-100/70"
                 >
-                  WhatsApp
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4.5 w-4.5">
+                    <path d="M12.04 2c-5.52 0-10 4.48-10 10 0 1.77.46 3.45 1.27 4.9L2 22l5.25-1.38a9.96 9.96 0 0 0 4.79 1.22h.01c5.52 0 10-4.48 10-10s-4.48-10-10-10Zm0 18.15h-.01a8.2 8.2 0 0 1-4.17-1.14l-.3-.18-3.12.82.83-3.04-.2-.31a8.17 8.17 0 0 1-1.25-4.35c0-4.52 3.68-8.2 8.21-8.2 2.19 0 4.25.85 5.8 2.4a8.15 8.15 0 0 1 2.4 5.8c0 4.52-3.68 8.2-8.19 8.2Zm4.5-6.15c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.12-.17.25-.64.81-.78.97-.14.17-.29.19-.53.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.15.16-.25.24-.42.08-.17.04-.31-.02-.43-.06-.12-.56-1.35-.77-1.85-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.23.25-.86.85-.86 2.07 0 1.22.89 2.39 1.01 2.56.12.17 1.75 2.67 4.25 3.74.59.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.28Z" />
+                  </svg>
                 </a>
               )}
             </li>

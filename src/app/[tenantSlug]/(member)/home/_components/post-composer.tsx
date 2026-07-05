@@ -14,7 +14,13 @@ interface CloudinarySignedParams {
   cloudName: string;
 }
 
-export function PostComposer({ tenantSlug }: { tenantSlug: string }) {
+export function PostComposer({
+  tenantSlug,
+  groupSlug,
+}: {
+  tenantSlug: string;
+  groupSlug?: string;
+}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,7 +69,11 @@ export function PostComposer({ tenantSlug }: { tenantSlug: string }) {
         mediaUrl = uploaded.secure_url;
       }
 
-      await fetchJson(`/api/tenants/${tenantSlug}/posts`, {
+      const endpoint = groupSlug
+        ? `/api/tenants/${tenantSlug}/groups/${groupSlug}/posts`
+        : `/api/tenants/${tenantSlug}/posts`;
+
+      await fetchJson(endpoint, {
         method: "POST",
         body: { content, mediaUrl },
       });
@@ -99,7 +109,7 @@ export function PostComposer({ tenantSlug }: { tenantSlug: string }) {
           e.target.style.height = "auto";
           e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
         }}
-        placeholder="Share an update with your alumni community..."
+        placeholder={groupSlug ? "Share an update with this group..." : "Share an update with your alumni community..."}
         rows={1}
         className="input resize-none overflow-y-auto"
       />

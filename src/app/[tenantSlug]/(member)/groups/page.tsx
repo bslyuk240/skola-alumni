@@ -33,7 +33,7 @@ export default async function GroupsPage({
   const membershipByGroupId = new Map(myMemberships.map((m) => [m.groupId, m]));
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
       <h1 className="text-lg font-semibold text-neutral-900">Groups</h1>
 
       {tenantGroups.length === 0 ? (

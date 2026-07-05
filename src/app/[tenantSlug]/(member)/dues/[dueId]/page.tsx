@@ -48,7 +48,7 @@ export default async function MemberDueDetailPage({
   const bankDetails = tenant.bankDetails as BankDetails | null;
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
       <div className="rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
         <h1 className="text-lg font-semibold text-neutral-900">{due.title}</h1>
         <p className="mt-1 text-2xl font-bold text-primary-700">{formatNaira(Number(due.amount))}</p>

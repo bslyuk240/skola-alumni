@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, type FormEvent } from "react";
-import { ImagePlus } from "lucide-react";
+import { useClerk } from "@clerk/nextjs";
+import { ImagePlus, LogOut } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
 import { Toggle } from "@/components/ui/toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -52,6 +53,7 @@ const PRIVACY_TOGGLES: { key: keyof PrivacySettings; label: string; helper: stri
 ];
 
 export function ProfileForm({ initial }: { initial: ProfileData }) {
+  const { signOut } = useClerk();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initial);
   const [uploading, setUploading] = useState(false);
@@ -244,6 +246,15 @@ export function ProfileForm({ initial }: { initial: ProfileData }) {
           className="rounded-md bg-primary-600 px-4 py-3.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
         >
           {submitting ? "Saving..." : "Save Profile Changes"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => signOut({ redirectUrl: "/" })}
+          className="flex items-center justify-center gap-2 rounded-md border border-neutral-300 px-4 py-3 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100"
+        >
+          <LogOut className="h-4 w-4" strokeWidth={1.75} />
+          Log Out
         </button>
       </form>
     </main>

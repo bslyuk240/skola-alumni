@@ -1,84 +1,11 @@
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { tenants, posts, profiles, comments, reactions, announcements } from "@/db/schema";
+import { tenants, posts, announcements } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { getPostFeed } from "@/lib/post-feed";
 import { PushNotificationPrompt } from "@/components/push-notification-prompt";
 import { PostComposer } from "./_components/post-composer";
-import { PostCard, type PostCardData } from "./_components/post-card";
-
-function timeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-async function getFeedPosts(tenantId: string, currentUserId: string | null): Promise<PostCardData[]> {
-  const rows = await db
-    .select({
-      id: posts.id,
-      authorId: posts.authorId,
-      type: posts.type,
-      content: posts.content,
-      mediaUrls: posts.mediaUrls,
-      createdAt: posts.createdAt,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      avatarUrl: profiles.avatarUrl,
-    })
-    .from(posts)
-    .innerJoin(profiles, eq(profiles.userId, posts.authorId))
-    .where(and(eq(posts.tenantId, tenantId), eq(posts.isModerated, false)))
-    .orderBy(desc(posts.createdAt))
-    .limit(30);
-
-  if (rows.length === 0) return [];
-
-  const postIds = rows.map((row) => row.id);
-
-  const allReactions = await db
-    .select({ postId: reactions.postId, userId: reactions.userId })
-    .from(reactions)
-    .where(inArray(reactions.postId, postIds));
-
-  const allComments = await db
-    .select({
-      id: comments.id,
-      postId: comments.postId,
-      content: comments.content,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-    })
-    .from(comments)
-    .innerJoin(profiles, eq(profiles.userId, comments.authorId))
-    .where(inArray(comments.postId, postIds))
-    .orderBy(comments.createdAt);
-
-  return rows.map((row) => {
-    const postReactions = allReactions.filter((r) => r.postId === row.id);
-    const mediaUrls = (row.mediaUrls as string[]) ?? [];
-
-    return {
-      id: row.id,
-      authorId: row.authorId,
-      authorName: `${row.firstName} ${row.lastName}`,
-      authorAvatarUrl: row.avatarUrl,
-      type: row.type as "POST" | "BUSINESS_ADVERT",
-      content: row.content,
-      mediaUrl: mediaUrls[0] ?? null,
-      createdAtLabel: timeAgo(row.createdAt),
-      likeCount: postReactions.length,
-      likedByMe: currentUserId ? postReactions.some((r) => r.userId === currentUserId) : false,
-      comments: allComments
-        .filter((c) => c.postId === row.id)
-        .map((c) => ({ id: c.id, authorName: `${c.firstName} ${c.lastName}`, content: c.content })),
-    };
-  });
-}
+import { PostCard } from "./_components/post-card";
 
 export default async function TenantHomePage({
   params,
@@ -94,14 +21,18 @@ export default async function TenantHomePage({
 
   const pinnedAnnouncements = await db.query.announcements.findMany({
     where: and(eq(announcements.tenantId, tenant.id), eq(announcements.isPinned, true)),
-    orderBy: desc(announcements.createdAt),
+    orderBy: (table, { desc }) => desc(table.createdAt),
     limit: 3,
   });
 
-  const feedPosts = await getFeedPosts(tenant.id, user?.id ?? null);
+  // General community feed only — group-scoped posts belong to their group's own page.
+  const feedPosts = await getPostFeed(
+    and(eq(posts.tenantId, tenant.id), isNull(posts.groupId), eq(posts.isModerated, false))!,
+    user?.id ?? null
+  );
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
       {user && <PushNotificationPrompt />}
 
       {pinnedAnnouncements.map((announcement) => (

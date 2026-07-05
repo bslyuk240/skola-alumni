@@ -143,24 +143,28 @@ body {
 }
 
 /* Text Input, per UI/UX Design Brief section 3.5 — 16px font floor prevents iOS auto-zoom-on-focus,
-   44px+ height meets touch-target guidance. */
-.input {
-  width: 100%;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-neutral-300);
-  padding: 0.75rem 0.875rem;
-  font-size: 1rem;
-  color: var(--color-neutral-900);
-  background: var(--color-white);
-  transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.input:hover {
-  border-color: var(--color-neutral-500);
-}
-.input:focus {
-  outline: none;
-  border-color: var(--color-primary-600);
-  box-shadow: 0 0 0 2px var(--color-primary-100);
+   44px+ height meets touch-target guidance.
+   Defined inside @layer components so Tailwind utilities (e.g. pl-9 for icon-prefixed inputs)
+   always win over this class's own padding, regardless of source order in this file. */
+@layer components {
+  .input {
+    width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-neutral-300);
+    padding: 0.75rem 0.875rem;
+    font-size: 1rem;
+    color: var(--color-neutral-900);
+    background: var(--color-white);
+    transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .input:hover {
+    border-color: var(--color-neutral-500);
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-primary-600);
+    box-shadow: 0 0 0 2px var(--color-primary-100);
+  }
 }
 
 /* Staggered field entrance — used by the auth sheet so each field rises in on step transitions. */

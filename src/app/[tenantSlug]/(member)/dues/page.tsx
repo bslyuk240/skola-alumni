@@ -49,7 +49,7 @@ export default async function MemberDuesPage({
     .orderBy(dues.dueDate);
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-6">
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
       <h1 className="text-lg font-semibold text-neutral-900">Dues Hub</h1>
 
       {myDues.length === 0 ? (
