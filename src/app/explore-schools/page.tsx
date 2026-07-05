@@ -3,6 +3,10 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { tenants, tenantMemberships } from "@/db/schema";
 
+// No auth/cookies/searchParams here to signal dynamic rendering, so Next.js would otherwise
+// prerender this once at build time and never show schools registered after that build.
+export const dynamic = "force-dynamic";
+
 async function getActiveTenants() {
   return db
     .select({
