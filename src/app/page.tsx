@@ -1,65 +1,153 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { Building2, Wallet, Users, Rocket, type LucideIcon } from "lucide-react";
+
+interface Slide {
+  Icon: LucideIcon;
+  title: string;
+  body: string;
+}
+
+const SLIDES: Slide[] = [
+  {
+    Icon: Building2,
+    title: "One Home For Your Alumni Association",
+    body: "Move beyond scattered WhatsApp groups and spreadsheets into a single, structured workspace.",
+  },
+  {
+    Icon: Wallet,
+    title: "Track Dues Without The Spreadsheet Chaos",
+    body: "Members upload payment receipts, treasurers verify them, and every transaction is logged automatically.",
+  },
+  {
+    Icon: Users,
+    title: "Class Sets & Regional Chapters, Sandboxed",
+    body: "Every class year and diaspora chapter gets its own feed, dues, and admins — without cluttering the main association.",
+  },
+];
+
+export default function LandingPage() {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const totalSlides = SLIDES.length + 1; // + final CTA slide
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const index = slideRefs.current.findIndex((el) => el === entry.target);
+            if (index !== -1) setActiveIndex(index);
+          }
+        }
+      },
+      { root: scroller, threshold: 0.6 }
+    );
+
+    for (const el of slideRefs.current) {
+      if (el) observer.observe(el);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  function goToSlide(index: number) {
+    slideRefs.current[index]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="flex flex-1 flex-col bg-primary-900 text-white">
+      <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col">
+        <div className="flex items-center justify-between px-6 pt-6">
+          <span className="text-xs font-semibold uppercase tracking-widest text-white/50">
+            Skola Alumni
+          </span>
+          {activeIndex < totalSlides - 1 && (
+            <button
+              type="button"
+              onClick={() => goToSlide(totalSlides - 1)}
+              className="text-xs font-medium text-white/70 hover:text-white"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              Skip
+            </button>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        <div
+          ref={scrollerRef}
+          className="mt-4 flex flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {SLIDES.map((slide, index) => (
+            <div
+              key={slide.title}
+              ref={(el) => {
+                slideRefs.current[index] = el;
+              }}
+              className="flex w-full flex-shrink-0 snap-center flex-col items-center justify-center px-8 text-center"
+            >
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10">
+                <slide.Icon className="h-9 w-9 text-secondary-500" strokeWidth={1.5} />
+              </div>
+              <h1 className="mt-8 text-2xl font-bold leading-tight">{slide.title}</h1>
+              <p className="mt-3 text-sm text-white/70">{slide.body}</p>
+            </div>
+          ))}
+
+          <div
+            ref={(el) => {
+              slideRefs.current[SLIDES.length] = el;
+            }}
+            className="flex w-full flex-shrink-0 snap-center flex-col items-center justify-center px-8 text-center"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10">
+              <Rocket className="h-9 w-9 text-secondary-500" strokeWidth={1.5} />
+            </div>
+            <h1 className="mt-8 text-2xl font-bold leading-tight">Ready to get started?</h1>
+            <p className="mt-3 text-sm text-white/70">
+              Register your association, or join one that&rsquo;s already on Skola Alumni.
+            </p>
+
+            <div className="mt-6 flex w-full flex-col gap-3">
+              <Link
+                href="/sign-up?type=tenant"
+                className="rounded-md bg-primary-600 px-6 py-3 text-sm font-medium hover:bg-primary-700 transition-colors"
+              >
+                Register Your Alumni Association
+              </Link>
+              <Link
+                href="/explore-schools"
+                className="rounded-md border border-white/30 px-6 py-3 text-sm font-medium hover:bg-white/10 transition-colors"
+              >
+                Join Your School Alumni Space
+              </Link>
+              <Link href="/sign-in" className="mt-1 text-sm font-medium text-white/70 hover:text-white">
+                Already have an account? Sign in
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center gap-2 pb-8 pt-4">
+          {Array.from({ length: totalSlides }).map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => goToSlide(index)}
+              aria-label={`Go to slide ${index + 1}`}
+              className={`h-1.5 rounded-full transition-all ${
+                index === activeIndex ? "w-6 bg-secondary-500" : "w-1.5 bg-white/30"
+              }`}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ))}
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

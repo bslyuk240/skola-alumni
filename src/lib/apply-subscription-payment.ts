@@ -1,0 +1,45 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { subscriptionPlans, subscriptions } from "@/db/schema";
+
+interface ApplyPaymentArgs {
+  tenantId: string;
+  planName: string;
+  billingCycle: "MONTHLY" | "YEARLY";
+  paystackReference: string;
+}
+
+/**
+ * Activates a tenant's subscription after a successful Paystack charge. Idempotent by reference —
+ * both the checkout callback page and the webhook call this, whichever fires first wins, and a
+ * repeat call for the same reference is a harmless no-op re-write of the same values.
+ */
+export async function applySubscriptionPayment({
+  tenantId,
+  planName,
+  billingCycle,
+  paystackReference,
+}: ApplyPaymentArgs) {
+  const plan = await db.query.subscriptionPlans.findFirst({
+    where: eq(subscriptionPlans.name, planName),
+  });
+  if (!plan) throw new Error(`Unknown plan in Paystack metadata: ${planName}`);
+
+  const now = new Date();
+  const periodLengthMs =
+    billingCycle === "YEARLY" ? 365 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
+  const currentPeriodEnd = new Date(now.getTime() + periodLengthMs);
+
+  await db
+    .update(subscriptions)
+    .set({
+      planId: plan.id,
+      status: "ACTIVE",
+      billingCycle,
+      currentPeriodStart: now,
+      currentPeriodEnd,
+      paystackReference,
+      updatedAt: now,
+    })
+    .where(eq(subscriptions.tenantId, tenantId));
+}
