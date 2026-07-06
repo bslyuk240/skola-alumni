@@ -6,13 +6,21 @@ import { posts, groupMemberships } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getTenantGroup, getApprovedGroupMembership } from "@/lib/group-access";
 import { sendPushToUsers } from "@/lib/firebase-admin";
+import { verifyPostMedia } from "@/lib/cloudinary";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-error";
 
-const createPostSchema = z.object({
-  content: z.string().min(1).max(5000),
-  type: z.enum(["POST", "BUSINESS_ADVERT"]).default("POST"),
-  mediaUrl: z.string().url().optional(),
-});
+const createPostSchema = z
+  .object({
+    content: z.string().min(1).max(5000),
+    type: z.enum(["POST", "BUSINESS_ADVERT"]).default("POST"),
+    mediaUrl: z.string().url().optional(),
+    mediaPublicId: z.string().optional(),
+    mediaResourceType: z.enum(["image", "video"]).optional(),
+  })
+  .refine((data) => !data.mediaUrl || (data.mediaPublicId && data.mediaResourceType), {
+    message: "mediaPublicId and mediaResourceType are required alongside mediaUrl",
+  });
 
 /** Group-scoped post — only visible within this group's page and to fellow group members
  * (via the profile page's visibility filter). Restricted to APPROVED group members. */
@@ -38,7 +46,23 @@ export async function POST(
       return NextResponse.json({ error: "Resource Not Found" }, { status: 404 });
     }
 
+    const allowed = await checkRateLimit(`post-create:${user.id}`, 10, 60);
+    if (!allowed) {
+      return NextResponse.json({ error: "You're posting too quickly. Please wait a moment." }, { status: 429 });
+    }
+
     const body = createPostSchema.parse(await req.json());
+
+    if (body.mediaUrl && body.mediaPublicId && body.mediaResourceType) {
+      try {
+        await verifyPostMedia(body.mediaUrl, body.mediaPublicId, body.mediaResourceType);
+      } catch (mediaError) {
+        return NextResponse.json(
+          { error: mediaError instanceof Error ? mediaError.message : "Invalid media" },
+          { status: 400 }
+        );
+      }
+    }
 
     const [post] = await db
       .insert(posts)
