@@ -58,8 +58,16 @@ export default async function GroupsPage({
                 key={group.id}
                 className="flex flex-col gap-2 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                    {group.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={group.avatarUrl} alt={group.name} className="h-full w-full object-cover" />
+                    ) : (
+                      group.name.slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0">
                     <Link
                       href={`/${tenantSlug}/groups/${group.slug}`}
                       className="text-sm font-semibold text-neutral-900 hover:underline"

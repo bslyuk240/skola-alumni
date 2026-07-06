@@ -53,8 +53,13 @@ export default async function GroupDetailPage({
         href={`/${tenantSlug}/groups/${groupSlug}/info`}
         className="flex items-center gap-3 rounded-lg border border-neutral-100 bg-white p-3 shadow-sm"
       >
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700">
-          {resolved.group.name.slice(0, 2).toUpperCase()}
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-100 text-sm font-semibold text-primary-700">
+          {resolved.group.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={resolved.group.avatarUrl} alt={resolved.group.name} className="h-full w-full object-cover" />
+          ) : (
+            resolved.group.name.slice(0, 2).toUpperCase()
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-neutral-900">{resolved.group.name}</p>

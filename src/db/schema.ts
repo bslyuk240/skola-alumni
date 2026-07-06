@@ -118,6 +118,7 @@ export const groups = pgTable("groups", {
   slug: varchar("slug", { length: 255 }).notNull(),
   type: varchar("type", { length: 50 }).notNull(), // CLASS_SET | CHAPTER | COMMITTEE
   description: text("description"),
+  avatarUrl: text("avatar_url"),
   requireJoinApproval: boolean("require_join_approval").default(true).notNull(),
   // Optional prompt shown to would-be joiners (e.g. "Who was our JSS3 form teacher?"); the
   // answer is not auto-checked, it's surfaced to admins reviewing the join request instead.

@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createSignedUploadParams } from "@/lib/cloudinary";
 import { ALLOWED_POST_MEDIA_FORMATS } from "@/lib/media-limits";
 
-const ALLOWED_FOLDERS = ["receipts", "avatars", "tenant-logos", "post-media"] as const;
+const ALLOWED_FOLDERS = ["receipts", "avatars", "tenant-logos", "group-avatars", "post-media"] as const;
 type AllowedFolder = (typeof ALLOWED_FOLDERS)[number];
 
 // Restricts which file extensions Cloudinary will accept per upload target — enforced by
@@ -12,6 +12,7 @@ const ALLOWED_FORMATS_BY_FOLDER: Partial<Record<AllowedFolder, string[]>> = {
   "post-media": ALLOWED_POST_MEDIA_FORMATS,
   avatars: ["jpg", "jpeg", "png", "webp"],
   "tenant-logos": ["jpg", "jpeg", "png", "webp"],
+  "group-avatars": ["jpg", "jpeg", "png", "webp"],
   receipts: ["jpg", "jpeg", "png", "pdf"],
 };
 

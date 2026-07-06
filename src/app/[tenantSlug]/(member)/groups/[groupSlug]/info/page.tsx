@@ -10,6 +10,7 @@ import { JoinButton } from "../../_components/join-button";
 import { LeaveGroupButton } from "../_components/leave-group-button";
 import { PendingRequests, type PendingRequest } from "../_components/pending-requests";
 import { MemberRoster, type RosterMember } from "../_components/member-roster";
+import { GroupAvatar } from "../_components/group-avatar";
 
 const TYPE_LABELS: Record<string, string> = {
   CLASS_SET: "Class Set",
@@ -105,9 +106,13 @@ export default async function GroupInfoPage({
       </Link>
 
       <div className="flex flex-col items-center gap-1.5 rounded-lg border border-neutral-100 bg-white p-6 text-center shadow-sm">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-lg font-semibold text-primary-700">
-          {resolved.group.name.slice(0, 2).toUpperCase()}
-        </div>
+        <GroupAvatar
+          tenantSlug={tenantSlug}
+          groupSlug={groupSlug}
+          groupName={resolved.group.name}
+          avatarUrl={resolved.group.avatarUrl}
+          editable={isGroupAdmin}
+        />
         <p className="mt-1 text-xs font-medium text-neutral-500">{TYPE_LABELS[resolved.group.type] ?? resolved.group.type}</p>
         <h1 className="text-lg font-semibold text-neutral-900">{resolved.group.name}</h1>
         {resolved.group.description && (
