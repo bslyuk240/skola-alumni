@@ -88,7 +88,7 @@ export function PwaInstallBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-xl rounded-lg border border-neutral-300 bg-white p-4 shadow-lg sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-[28rem]">
+    <div className="fixed inset-x-3 bottom-20 z-50 mx-auto max-w-xl rounded-lg border border-neutral-300 bg-white p-4 shadow-lg sm:inset-x-auto sm:right-4 sm:bottom-20 sm:w-[28rem]">
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-100 text-primary-700">
           <Smartphone className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />

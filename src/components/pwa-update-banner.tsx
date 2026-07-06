@@ -67,7 +67,7 @@ export function PwaUpdateBanner() {
   if (!waitingWorker) return null;
 
   return (
-    <div className="fixed inset-x-3 top-3 z-50 mx-auto max-w-xl rounded-lg border border-primary-200 bg-primary-50 p-3 shadow-lg sm:inset-x-auto sm:left-4 sm:w-96">
+    <div className="fixed inset-x-3 bottom-20 z-50 mx-auto max-w-xl rounded-lg border border-primary-200 bg-primary-50 p-3 shadow-lg sm:inset-x-auto sm:left-4 sm:bottom-20 sm:w-96">
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary-100 text-primary-700">
           <RefreshCw className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />

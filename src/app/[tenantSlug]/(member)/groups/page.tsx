@@ -56,34 +56,33 @@ export default async function GroupsPage({
             return (
               <li
                 key={group.id}
-                className="flex flex-col gap-2 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-neutral-100 bg-white p-3 shadow-sm"
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
-                    {group.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={group.avatarUrl} alt={group.name} className="h-full w-full object-cover" />
-                    ) : (
-                      group.name.slice(0, 2).toUpperCase()
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <Link
-                      href={`/${tenantSlug}/groups/${group.slug}`}
-                      className="text-sm font-semibold text-neutral-900 hover:underline"
-                    >
-                      {group.name}
-                    </Link>
-                    <p className="text-xs text-neutral-500">{TYPE_LABELS[group.type] ?? group.type}</p>
-                  </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                  {group.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={group.avatarUrl} alt={group.name} className="h-full w-full object-cover" />
+                  ) : (
+                    group.name.slice(0, 2).toUpperCase()
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/${tenantSlug}/groups/${group.slug}`}
+                    className="block truncate text-sm font-semibold text-neutral-900 hover:underline"
+                  >
+                    {group.name}
+                  </Link>
+                  <p className="truncate text-xs text-neutral-500">{TYPE_LABELS[group.type] ?? group.type}</p>
                 </div>
 
                 {membership?.status === "APPROVED" ? (
-                  <span className="w-fit rounded-full bg-success-100 px-3 py-1 text-xs font-semibold text-success-700">
+                  <span className="shrink-0 rounded-full bg-success-100 px-3 py-1 text-xs font-semibold text-success-700">
                     Joined
                   </span>
                 ) : membership?.status === "PENDING" ? (
-                  <span className="w-fit rounded-full bg-warning-100 px-3 py-1 text-xs font-semibold text-warning-700">
+                  <span className="shrink-0 rounded-full bg-warning-100 px-3 py-1 text-xs font-semibold text-warning-700">
                     Pending Approval
                   </span>
                 ) : (
