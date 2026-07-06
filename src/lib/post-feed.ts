@@ -43,23 +43,26 @@ export async function getPostFeed(
 
   const postIds = rows.map((row) => row.id);
 
-  const allReactions = await db
-    .select({ postId: reactions.postId, userId: reactions.userId })
-    .from(reactions)
-    .where(inArray(reactions.postId, postIds));
-
-  const allComments = await db
-    .select({
-      id: comments.id,
-      postId: comments.postId,
-      content: comments.content,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-    })
-    .from(comments)
-    .innerJoin(profiles, eq(profiles.userId, comments.authorId))
-    .where(inArray(comments.postId, postIds))
-    .orderBy(comments.createdAt);
+  // Reactions and comments are both scoped only by postIds — independent of each other, so
+  // there's no reason to wait for one before starting the other.
+  const [allReactions, allComments] = await Promise.all([
+    db
+      .select({ postId: reactions.postId, userId: reactions.userId })
+      .from(reactions)
+      .where(inArray(reactions.postId, postIds)),
+    db
+      .select({
+        id: comments.id,
+        postId: comments.postId,
+        content: comments.content,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+      })
+      .from(comments)
+      .innerJoin(profiles, eq(profiles.userId, comments.authorId))
+      .where(inArray(comments.postId, postIds))
+      .orderBy(comments.createdAt),
+  ]);
 
   return rows.map((row) => {
     const postReactions = allReactions.filter((r) => r.postId === row.id);

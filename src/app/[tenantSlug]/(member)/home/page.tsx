@@ -14,22 +14,26 @@ export default async function TenantHomePage({
 }) {
   const { tenantSlug } = await params;
 
-  const tenant = await db.query.tenants.findFirst({ where: eq(tenants.slug, tenantSlug) });
+  // The tenant lookup and current-user lookup are independent — no reason to serialize them.
+  const [tenant, user] = await Promise.all([
+    db.query.tenants.findFirst({ where: eq(tenants.slug, tenantSlug) }),
+    getCurrentUser(),
+  ]);
   if (!tenant) return null;
 
-  const user = await getCurrentUser();
-
-  const pinnedAnnouncements = await db.query.announcements.findMany({
-    where: and(eq(announcements.tenantId, tenant.id), eq(announcements.isPinned, true)),
-    orderBy: (table, { desc }) => desc(table.createdAt),
-    limit: 3,
-  });
-
-  // General community feed only — group-scoped posts belong to their group's own page.
-  const feedPosts = await getPostFeed(
-    and(eq(posts.tenantId, tenant.id), isNull(posts.groupId), eq(posts.isModerated, false))!,
-    user?.id ?? null
-  );
+  // Pinned announcements and the feed are both independent reads once we have tenant.id.
+  const [pinnedAnnouncements, feedPosts] = await Promise.all([
+    db.query.announcements.findMany({
+      where: and(eq(announcements.tenantId, tenant.id), eq(announcements.isPinned, true)),
+      orderBy: (table, { desc }) => desc(table.createdAt),
+      limit: 3,
+    }),
+    // General community feed only — group-scoped posts belong to their group's own page.
+    getPostFeed(
+      and(eq(posts.tenantId, tenant.id), isNull(posts.groupId), eq(posts.isModerated, false))!,
+      user?.id ?? null
+    ),
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">

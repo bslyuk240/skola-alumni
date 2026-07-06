@@ -24,21 +24,21 @@ export default async function GroupDetailPage({
 }) {
   const { tenantSlug, groupSlug } = await params;
 
-  const resolved = await getTenantGroup(tenantSlug, groupSlug);
+  // Independent lookups — resolving the group by slug doesn't depend on the current session.
+  const [resolved, user] = await Promise.all([getTenantGroup(tenantSlug, groupSlug), getCurrentUser()]);
   if (!resolved) notFound();
 
-  const user = await getCurrentUser();
-
-  const memberCount = await db.$count(
-    groupMemberships,
-    and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "APPROVED"))
-  );
-
-  const myMembership = user
-    ? await db.query.groupMemberships.findFirst({
-        where: and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.userId, user.id)),
-      })
-    : null;
+  const [memberCount, myMembership] = await Promise.all([
+    db.$count(
+      groupMemberships,
+      and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "APPROVED"))
+    ),
+    user
+      ? db.query.groupMemberships.findFirst({
+          where: and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.userId, user.id)),
+        })
+      : Promise.resolve(null),
+  ]);
 
   // Group posts are only visible to approved members of this group — not to visitors browsing
   // the group page before joining.

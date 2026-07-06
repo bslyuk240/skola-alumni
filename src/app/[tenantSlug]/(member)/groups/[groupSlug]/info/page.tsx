@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { groupMemberships, profiles, posts } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { getTenantGroup, getAuthorizedGroupMembership } from "@/lib/group-access";
+import { getTenantGroup } from "@/lib/group-access";
 import { JoinButton } from "../../_components/join-button";
 import { LeaveGroupButton } from "../_components/leave-group-button";
 import { PendingRequests, type PendingRequest } from "../_components/pending-requests";
@@ -28,95 +28,95 @@ export default async function GroupInfoPage({
 }) {
   const { tenantSlug, groupSlug } = await params;
 
-  const resolved = await getTenantGroup(tenantSlug, groupSlug);
+  // Independent lookups — resolving the group by slug doesn't depend on the current session.
+  const [resolved, user] = await Promise.all([getTenantGroup(tenantSlug, groupSlug), getCurrentUser()]);
   if (!resolved) notFound();
 
-  const user = await getCurrentUser();
-
-  const memberCount = await db.$count(
-    groupMemberships,
-    and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "APPROVED"))
-  );
-
-  const myMembership = user
-    ? await db.query.groupMemberships.findFirst({
-        where: and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.userId, user.id)),
-      })
-    : null;
+  const [memberCount, myMembership] = await Promise.all([
+    db.$count(
+      groupMemberships,
+      and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "APPROVED"))
+    ),
+    user
+      ? db.query.groupMemberships.findFirst({
+          where: and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.userId, user.id)),
+        })
+      : Promise.resolve(null),
+  ]);
 
   const isApprovedMember = myMembership?.status === "APPROVED";
+  // Derived from the membership row already fetched above — getAuthorizedGroupMembership would
+  // just re-run the exact same query a second time.
+  const isGroupAdmin = Boolean(
+    myMembership?.status === "APPROVED" && GROUP_ADMIN_ROLES.includes(myMembership.groupRole)
+  );
 
-  const isGroupAdmin = user
-    ? Boolean(await getAuthorizedGroupMembership(user.id, resolved.group.id, GROUP_ADMIN_ROLES))
-    : false;
+  // None of these three depend on one another — only on isGroupAdmin/isApprovedMember, both
+  // already known — so fire whichever are needed together instead of one after another.
+  const [pendingRequestRows, memberRows, flaggedPostRows] = await Promise.all([
+    isGroupAdmin
+      ? db
+          .select({
+            membershipId: groupMemberships.id,
+            firstName: profiles.firstName,
+            lastName: profiles.lastName,
+            graduationYear: profiles.graduationYear,
+            securityAnswer: groupMemberships.securityAnswer,
+          })
+          .from(groupMemberships)
+          .innerJoin(profiles, eq(profiles.userId, groupMemberships.userId))
+          .where(and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "PENDING")))
+      : Promise.resolve([]),
+    // Visible to every approved member, like WhatsApp's participant list — only the owner gets
+    // the promote/demote/transfer controls, handled inside MemberRoster itself.
+    isApprovedMember
+      ? db
+          .select({
+            userId: groupMemberships.userId,
+            groupRole: groupMemberships.groupRole,
+            firstName: profiles.firstName,
+            lastName: profiles.lastName,
+            graduationYear: profiles.graduationYear,
+          })
+          .from(groupMemberships)
+          .innerJoin(profiles, eq(profiles.userId, groupMemberships.userId))
+          .where(and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "APPROVED")))
+      : Promise.resolve([]),
+    // Flagged posts within this group are the group's own business — its owner/admin reviews
+    // and restores them here, rather than the tenant's moderation queue.
+    isGroupAdmin
+      ? db
+          .select({
+            id: posts.id,
+            content: posts.content,
+            firstName: profiles.firstName,
+            lastName: profiles.lastName,
+          })
+          .from(posts)
+          .innerJoin(profiles, eq(profiles.userId, posts.authorId))
+          .where(and(eq(posts.groupId, resolved.group.id), eq(posts.isModerated, true)))
+      : Promise.resolve([]),
+  ]);
 
-  let pendingRequests: PendingRequest[] = [];
-  if (isGroupAdmin) {
-    const rows = await db
-      .select({
-        membershipId: groupMemberships.id,
-        firstName: profiles.firstName,
-        lastName: profiles.lastName,
-        graduationYear: profiles.graduationYear,
-        securityAnswer: groupMemberships.securityAnswer,
-      })
-      .from(groupMemberships)
-      .innerJoin(profiles, eq(profiles.userId, groupMemberships.userId))
-      .where(and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "PENDING")));
+  const pendingRequests: PendingRequest[] = pendingRequestRows.map((row) => ({
+    membershipId: row.membershipId,
+    fullName: `${row.firstName} ${row.lastName}`,
+    graduationYear: row.graduationYear,
+    securityAnswer: row.securityAnswer,
+  }));
 
-    pendingRequests = rows.map((row) => ({
-      membershipId: row.membershipId,
-      fullName: `${row.firstName} ${row.lastName}`,
-      graduationYear: row.graduationYear,
-      securityAnswer: row.securityAnswer,
-    }));
-  }
+  const members: RosterMember[] = memberRows.map((row) => ({
+    userId: row.userId,
+    groupRole: row.groupRole,
+    fullName: `${row.firstName} ${row.lastName}`,
+    graduationYear: row.graduationYear,
+  }));
 
-  // Visible to every approved member, like WhatsApp's participant list — only the owner gets
-  // the promote/demote/transfer controls, handled inside MemberRoster itself.
-  let members: RosterMember[] = [];
-  if (isApprovedMember) {
-    const rows = await db
-      .select({
-        userId: groupMemberships.userId,
-        groupRole: groupMemberships.groupRole,
-        firstName: profiles.firstName,
-        lastName: profiles.lastName,
-        graduationYear: profiles.graduationYear,
-      })
-      .from(groupMemberships)
-      .innerJoin(profiles, eq(profiles.userId, groupMemberships.userId))
-      .where(and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "APPROVED")));
-
-    members = rows.map((row) => ({
-      userId: row.userId,
-      groupRole: row.groupRole,
-      fullName: `${row.firstName} ${row.lastName}`,
-      graduationYear: row.graduationYear,
-    }));
-  }
-
-  // Flagged posts within this group are the group's own business — its owner/admin reviews and
-  // restores them here, rather than the tenant's moderation queue.
-  let flaggedPosts: { id: string; content: string; authorName: string }[] = [];
-  if (isGroupAdmin) {
-    const rows = await db
-      .select({
-        id: posts.id,
-        content: posts.content,
-        firstName: profiles.firstName,
-        lastName: profiles.lastName,
-      })
-      .from(posts)
-      .innerJoin(profiles, eq(profiles.userId, posts.authorId))
-      .where(and(eq(posts.groupId, resolved.group.id), eq(posts.isModerated, true)));
-
-    flaggedPosts = rows.map((row) => ({
-      id: row.id,
-      content: row.content,
-      authorName: `${row.firstName} ${row.lastName}`,
-    }));
-  }
+  const flaggedPosts = flaggedPostRows.map((row) => ({
+    id: row.id,
+    content: row.content,
+    authorName: `${row.firstName} ${row.lastName}`,
+  }));
 
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
