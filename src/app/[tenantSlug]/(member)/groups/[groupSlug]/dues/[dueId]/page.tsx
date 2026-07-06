@@ -1,12 +1,14 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { dues, payments, profiles, paymentReceipts } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
-import { VerifyPayment } from "./_components/verify-payment";
+import { getTenantGroup, getAuthorizedGroupMembership } from "@/lib/group-access";
+import { VerifyPayment } from "../../../../../admin/dues/[dueId]/_components/verify-payment";
 
-const FINANCE_ROLES = ["President/School Owner", "Finance Admin"];
+const GROUP_ADMIN_ROLES = ["GROUP_OWNER", "GROUP_ADMIN"];
 
 const STATUS_STYLES: Record<string, string> = {
   PAID: "bg-success-100 text-success-700",
@@ -19,25 +21,26 @@ function formatNaira(amount: number) {
   return `₦${amount.toLocaleString("en-NG")}`;
 }
 
-export default async function DueDetailPage({
+export default async function GroupDueDetailPage({
   params,
 }: {
-  params: Promise<{ tenantSlug: string; dueId: string }>;
+  params: Promise<{ tenantSlug: string; groupSlug: string; dueId: string }>;
 }) {
-  const { tenantSlug, dueId } = await params;
+  const { tenantSlug, groupSlug, dueId } = await params;
 
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in");
 
-  const authorized = await getAuthorizedTenantMembership(user.id, tenantSlug, FINANCE_ROLES);
-  if (!authorized) redirect(`/${tenantSlug}/admin`);
+  const resolved = await getTenantGroup(tenantSlug, groupSlug);
+  if (!resolved) redirect(`/${tenantSlug}/groups`);
+
+  const groupMembership = await getAuthorizedGroupMembership(user.id, resolved.group.id, GROUP_ADMIN_ROLES);
+  if (!groupMembership) redirect(`/${tenantSlug}/groups/${groupSlug}/info`);
 
   const due = await db.query.dues.findFirst({
-    where: and(eq(dues.id, dueId), eq(dues.tenantId, authorized.tenant.id)),
+    where: and(eq(dues.id, dueId), eq(dues.tenantId, resolved.tenant.id), eq(dues.groupId, resolved.group.id)),
   });
   if (!due) notFound();
-  // Group-scoped dues are managed from the group's own page now, not the tenant admin section.
-  if (due.groupId) redirect(`/${tenantSlug}/admin/dues`);
 
   const rows = await db
     .select({
@@ -77,13 +80,23 @@ export default async function DueDetailPage({
   const others = rows.filter((row) => row.status !== "PENDING_CONFIRMATION");
 
   return (
-    <main className="flex-1 px-6 py-6">
-      <h1 className="text-xl font-semibold text-neutral-900">{due.title}</h1>
-      <p className="text-sm text-neutral-500">
-        {formatNaira(Number(due.amount))} · Due {new Date(due.dueDate).toLocaleDateString("en-NG")}
-      </p>
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
+      <Link
+        href={`/${tenantSlug}/groups/${groupSlug}/dues`}
+        className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-700"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+        Back to group dues
+      </Link>
 
-      <div className="mt-4 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
+      <div>
+        <h1 className="text-lg font-semibold text-neutral-900">{due.title}</h1>
+        <p className="text-sm text-neutral-500">
+          {formatNaira(Number(due.amount))} · Due {new Date(due.dueDate).toLocaleDateString("en-NG")}
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-neutral-900">Pending Review ({pending.length})</h2>
         {pending.length === 0 ? (
           <p className="mt-2 text-sm text-neutral-500">No receipts awaiting review.</p>
@@ -124,7 +137,7 @@ export default async function DueDetailPage({
         )}
       </div>
 
-      <div className="mt-4 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
+      <div className="rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-neutral-900">All Members</h2>
         <ul className="mt-2 flex flex-col divide-y divide-neutral-100">
           {others.map((row) => (

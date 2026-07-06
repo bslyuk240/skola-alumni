@@ -3,22 +3,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "@/db";
-import { payments, dues, paymentReceipts, auditLogs, users, profiles } from "@/db/schema";
+import { tenants, payments, dues, paymentReceipts, auditLogs, users, profiles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
+import { getAuthorizedGroupMembership } from "@/lib/group-access";
 import { sendTransactionalEmail } from "@/lib/resend";
 import { PaymentConfirmedEmail } from "@/templates/payment-confirmed-email";
 import { env } from "@/config/env";
 import { handleApiError } from "@/lib/api-error";
 
 const FINANCE_ROLES = ["President/School Owner", "Finance Admin"];
+const GROUP_ADMIN_ROLES = ["GROUP_OWNER", "GROUP_ADMIN"];
 
 const verifySchema = z.object({
   action: z.enum(["APPROVED", "REJECTED"]),
   adminNotes: z.string().max(2000).optional(),
 });
 
-/** Treasurer/President approves or rejects a pending payment. Records an audit log entry either way. */
+/**
+ * Approves or rejects a pending payment. A payment against a group-scoped due is that group's
+ * own affair — its owner/admin verifies it. Tenant-wide dues remain verified by tenant finance
+ * roles. Records an audit log entry either way.
+ */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ tenantSlug: string; paymentId: string }> }
@@ -31,8 +37,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Access Denied" }, { status: 401 });
     }
 
-    const authorized = await getAuthorizedTenantMembership(user.id, tenantSlug, FINANCE_ROLES);
-    if (!authorized) {
+    const tenant = await db.query.tenants.findFirst({ where: eq(tenants.slug, tenantSlug) });
+    if (!tenant || !tenant.isActive) {
       return NextResponse.json({ error: "Resource Not Found" }, { status: 404 });
     }
 
@@ -42,11 +48,24 @@ export async function PATCH(
     }
 
     const due = await db.query.dues.findFirst({
-      where: and(eq(dues.id, payment.dueId), eq(dues.tenantId, authorized.tenant.id)),
+      where: and(eq(dues.id, payment.dueId), eq(dues.tenantId, tenant.id)),
     });
     if (!due) {
       return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     }
+
+    if (due.groupId) {
+      const groupMembership = await getAuthorizedGroupMembership(user.id, due.groupId, GROUP_ADMIN_ROLES);
+      if (!groupMembership) {
+        return NextResponse.json({ error: "Resource Not Found" }, { status: 404 });
+      }
+    } else {
+      const authorized = await getAuthorizedTenantMembership(user.id, tenantSlug, FINANCE_ROLES);
+      if (!authorized) {
+        return NextResponse.json({ error: "Resource Not Found" }, { status: 404 });
+      }
+    }
+
     if (payment.status !== "PENDING_CONFIRMATION") {
       return NextResponse.json({ error: "Payment is not awaiting review" }, { status: 409 });
     }
@@ -77,7 +96,7 @@ export async function PATCH(
       }
 
       await tx.insert(auditLogs).values({
-        tenantId: authorized.tenant.id,
+        tenantId: tenant.id,
         actorId: user.id,
         action: body.action === "APPROVED" ? "PAYMENT_APPROVE" : "PAYMENT_REJECT",
         entityType: "payments",
@@ -102,7 +121,7 @@ export async function PATCH(
               recipientName: profile?.firstName ?? "there",
               dueTitle: due.title,
               amount: `₦${Number(due.amount).toLocaleString("en-NG")}`,
-              tenantName: authorized.tenant.name,
+              tenantName: tenant.name,
               duesUrl: `${env.NEXT_PUBLIC_APP_URL}/${tenantSlug}/dues`,
             }),
           });

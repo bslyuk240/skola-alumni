@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronRight, Wallet, HeartHandshake } from "lucide-react";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
-import { groupMemberships, profiles } from "@/db/schema";
+import { groupMemberships, profiles, posts } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getTenantGroup, getAuthorizedGroupMembership } from "@/lib/group-access";
 import { JoinButton } from "../../_components/join-button";
@@ -11,6 +11,7 @@ import { LeaveGroupButton } from "../_components/leave-group-button";
 import { PendingRequests, type PendingRequest } from "../_components/pending-requests";
 import { MemberRoster, type RosterMember } from "../_components/member-roster";
 import { GroupAvatar } from "../_components/group-avatar";
+import { RestoreButton } from "../../../../admin/moderation/_components/restore-button";
 
 const TYPE_LABELS: Record<string, string> = {
   CLASS_SET: "Class Set",
@@ -95,6 +96,28 @@ export default async function GroupInfoPage({
     }));
   }
 
+  // Flagged posts within this group are the group's own business — its owner/admin reviews and
+  // restores them here, rather than the tenant's moderation queue.
+  let flaggedPosts: { id: string; content: string; authorName: string }[] = [];
+  if (isGroupAdmin) {
+    const rows = await db
+      .select({
+        id: posts.id,
+        content: posts.content,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+      })
+      .from(posts)
+      .innerJoin(profiles, eq(profiles.userId, posts.authorId))
+      .where(and(eq(posts.groupId, resolved.group.id), eq(posts.isModerated, true)));
+
+    flaggedPosts = rows.map((row) => ({
+      id: row.id,
+      content: row.content,
+      authorName: `${row.firstName} ${row.lastName}`,
+    }));
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
       <Link
@@ -171,6 +194,54 @@ export default async function GroupInfoPage({
             />
           </div>
         </div>
+      )}
+
+      {isGroupAdmin && flaggedPosts.length > 0 && (
+        <div className="rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-neutral-900">Flagged Posts ({flaggedPosts.length})</h2>
+          <p className="mt-1 text-xs text-neutral-500">Hidden after 3 or more member reports.</p>
+          <ul className="mt-2 flex flex-col gap-3 divide-y divide-neutral-100">
+            {flaggedPosts.map((post) => (
+              <li key={post.id} className="flex items-start justify-between gap-3 pt-3 first:pt-0">
+                <div>
+                  <p className="text-sm font-medium text-neutral-900">{post.authorName}</p>
+                  <p className="mt-1 text-sm text-neutral-700">{post.content}</p>
+                </div>
+                <RestoreButton tenantSlug={tenantSlug} postId={post.id} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {isGroupAdmin && (
+        <Link
+          href={`/${tenantSlug}/groups/${groupSlug}/dues`}
+          className="flex items-center gap-3 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm hover:bg-neutral-50"
+        >
+          <Wallet className="h-4 w-4 shrink-0 text-neutral-500" strokeWidth={1.75} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-neutral-900">Group Dues</p>
+            <p className="text-xs text-neutral-500">Create dues and verify payments for this group</p>
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" strokeWidth={1.75} />
+        </Link>
+      )}
+
+      {isApprovedMember && (
+        <Link
+          href={`/${tenantSlug}/groups/${groupSlug}/donations`}
+          className="flex items-center gap-3 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm hover:bg-neutral-50"
+        >
+          <HeartHandshake className="h-4 w-4 shrink-0 text-neutral-500" strokeWidth={1.75} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-neutral-900">Group Donations</p>
+            <p className="text-xs text-neutral-500">
+              {isGroupAdmin ? "Run campaigns and give to this group" : "Give to this group's campaigns"}
+            </p>
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" strokeWidth={1.75} />
+        </Link>
       )}
     </main>
   );
