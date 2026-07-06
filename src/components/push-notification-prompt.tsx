@@ -7,6 +7,9 @@ import { fetchJson } from "@/lib/fetch-json";
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
+const DISMISSED_AT_KEY = "skola-push-prompt-dismissed-at";
+const REMIND_AFTER_DAYS = 7;
+
 export function PushNotificationPrompt() {
   const [visible, setVisible] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -15,11 +18,22 @@ export function PushNotificationPrompt() {
   useEffect(() => {
     if (!isFirebaseConfigured() || !VAPID_KEY) return;
     if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "default") return;
+
+    // Without this, the banner would reappear on every single page load once dismissed — instead
+    // "Not now" snoozes it for a while so it resurfaces occasionally rather than nagging.
+    const dismissedAt = Number(localStorage.getItem(DISMISSED_AT_KEY) ?? 0);
+    const daysSinceDismissed = (Date.now() - dismissedAt) / (24 * 60 * 60 * 1000);
     // Notification.permission is a browser-only API — can't read it during render (breaks SSR/
     // hydration parity), so this genuinely needs an effect, not a lazy useState initializer.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (Notification.permission === "default") setVisible(true);
+    if (daysSinceDismissed >= REMIND_AFTER_DAYS) setVisible(true);
   }, []);
+
+  function handleDismiss() {
+    localStorage.setItem(DISMISSED_AT_KEY, String(Date.now()));
+    setVisible(false);
+  }
 
   async function handleEnable() {
     setRequesting(true);
@@ -72,7 +86,7 @@ export function PushNotificationPrompt() {
         </button>
         <button
           type="button"
-          onClick={() => setVisible(false)}
+          onClick={handleDismiss}
           className="text-xs font-medium text-primary-700 hover:underline"
         >
           Not now
