@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, isNull, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { posts, profiles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
@@ -31,7 +31,9 @@ export default async function ModerationQueuePage({
     })
     .from(posts)
     .innerJoin(profiles, eq(profiles.userId, posts.authorId))
-    .where(and(eq(posts.tenantId, authorized.tenant.id), eq(posts.isModerated, true)))
+    // Group posts are that group's own business — flagged group content is handled by the
+    // group's own owner/admin on the group's page, not surfaced to tenant-wide moderators here.
+    .where(and(eq(posts.tenantId, authorized.tenant.id), isNull(posts.groupId), eq(posts.isModerated, true)))
     .orderBy(desc(posts.createdAt));
 
   return (

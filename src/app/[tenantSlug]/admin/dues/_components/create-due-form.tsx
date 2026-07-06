@@ -4,18 +4,12 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/fetch-json";
 
-interface GroupOption {
-  id: string;
-  name: string;
-}
-
-export function CreateDueForm({ tenantSlug, groups }: { tenantSlug: string; groups: GroupOption[] }) {
+export function CreateDueForm({ tenantSlug, groupId }: { tenantSlug: string; groupId?: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [isMandatory, setIsMandatory] = useState(true);
-  const [groupId, setGroupId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -32,7 +26,7 @@ export function CreateDueForm({ tenantSlug, groups }: { tenantSlug: string; grou
           amount: Number(amount),
           dueDate: new Date(dueDate).toISOString(),
           isMandatory,
-          groupId: groupId || undefined,
+          groupId,
         },
       });
       setTitle("");
@@ -94,18 +88,6 @@ export function CreateDueForm({ tenantSlug, groups }: { tenantSlug: string; grou
           />
         </label>
       </div>
-
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-neutral-700">Scope</span>
-        <select value={groupId} onChange={(e) => setGroupId(e.target.value)} className="input">
-          <option value="">Entire Tenant</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
-      </label>
 
       <label className="flex items-center gap-2 text-sm text-neutral-700">
         <input
