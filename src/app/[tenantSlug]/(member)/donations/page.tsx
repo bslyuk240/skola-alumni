@@ -2,11 +2,6 @@ import Link from "next/link";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { tenants, donationCampaigns, donationContributions } from "@/db/schema";
-import { getCurrentUser } from "@/lib/auth";
-import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
-import { CreateCampaignForm } from "./_components/create-campaign-form";
-
-const FINANCE_ROLES = ["President/School Owner", "Finance Admin"];
 
 function formatNaira(amount: number) {
   return `₦${amount.toLocaleString("en-NG")}`;
@@ -22,13 +17,8 @@ export default async function DonationsPage({
   const tenant = await db.query.tenants.findFirst({ where: eq(tenants.slug, tenantSlug) });
   if (!tenant) return null;
 
-  const user = await getCurrentUser();
-
-  const isFinanceAdmin = user
-    ? Boolean(await getAuthorizedTenantMembership(user.id, tenantSlug, FINANCE_ROLES))
-    : false;
-
-  // Group-scoped campaigns are managed and given to from the group's own page.
+  // Group-scoped campaigns are managed and given to from the group's own page. Creating a
+  // tenant-wide campaign happens in the admin section, not here.
   const campaigns = await db
     .select({
       id: donationCampaigns.id,
@@ -49,8 +39,6 @@ export default async function DonationsPage({
         <h1 className="text-lg font-semibold text-neutral-900">Donations</h1>
         <p className="text-sm text-neutral-500">Support your alumni association&apos;s ongoing projects.</p>
       </div>
-
-      {isFinanceAdmin && <CreateCampaignForm tenantSlug={tenantSlug} />}
 
       {campaigns.length === 0 ? (
         <div className="rounded-lg border border-neutral-100 bg-white p-6 text-center shadow-sm">

@@ -109,7 +109,7 @@ export function AdminSidebar({
     { href: `/${tenantSlug}/admin/announcements`, label: "Announcements", Icon: Megaphone },
     { href: `/${tenantSlug}/admin/moderation`, label: "Moderation", Icon: ShieldAlert },
     { href: `/${tenantSlug}/admin/dues`, label: "Dues & Payments", Icon: Wallet },
-    { href: `/${tenantSlug}/donations`, label: "Donations", Icon: HeartHandshake },
+    { href: `/${tenantSlug}/admin/donations`, label: "Donations", Icon: HeartHandshake },
     { href: `/${tenantSlug}/admin/roles`, label: "Roles & Governance", Icon: ShieldCheck },
     { href: `/${tenantSlug}/admin/billing`, label: "Billing & Subscription", Icon: CreditCard },
     { href: `/${tenantSlug}/admin/audit-logs`, label: "Audit Logs", Icon: ScrollText },
