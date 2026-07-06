@@ -133,7 +133,7 @@ export function PostComposer({
           e.target.style.height = "auto";
           e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
         }}
-        placeholder={groupSlug ? "Share an update with this group..." : "Share an update with your alumni community..."}
+        placeholder={groupSlug ? "Share with this group..." : "Share an update..."}
         rows={1}
         className="input resize-none overflow-y-auto"
       />
