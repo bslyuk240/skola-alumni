@@ -8,6 +8,7 @@ import { getPostFeed } from "@/lib/post-feed";
 import { JoinButton } from "../_components/join-button";
 import { PendingRequests, type PendingRequest } from "./_components/pending-requests";
 import { MemberRoster, type RosterMember } from "./_components/member-roster";
+import { LeaveGroupButton } from "./_components/leave-group-button";
 import { PostComposer } from "../../home/_components/post-composer";
 import { PostCard } from "../../home/_components/post-card";
 
@@ -105,7 +106,7 @@ export default async function GroupDetailPage({
         )}
         <p className="mt-2 text-xs text-neutral-500">{memberCount} members</p>
 
-        <div className="mt-3">
+        <div className="mt-3 flex items-center justify-between gap-2">
           {myMembership?.status === "APPROVED" ? (
             <span className="w-fit rounded-full bg-success-100 px-3 py-1 text-xs font-semibold text-success-700">
               Joined
@@ -120,6 +121,10 @@ export default async function GroupDetailPage({
               groupSlug={groupSlug}
               requireJoinApproval={resolved.group.requireJoinApproval}
             />
+          )}
+
+          {isApprovedMember && myMembership?.groupRole !== "GROUP_OWNER" && (
+            <LeaveGroupButton tenantSlug={tenantSlug} groupSlug={groupSlug} />
           )}
         </div>
       </div>

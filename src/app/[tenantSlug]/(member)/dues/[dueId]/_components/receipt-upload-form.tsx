@@ -11,6 +11,7 @@ interface CloudinarySignedParams {
   timestamp: number;
   folder: string;
   public_id?: string;
+  allowed_formats?: string;
   signature: string;
   apiKey: string;
   cloudName: string;
@@ -58,6 +59,7 @@ export function ReceiptUploadForm({ tenantSlug, dueId }: { tenantSlug: string; d
       formData.append("api_key", signed.apiKey);
       formData.append("folder", signed.folder);
       if (signed.public_id) formData.append("public_id", signed.public_id);
+      if (signed.allowed_formats) formData.append("allowed_formats", signed.allowed_formats);
 
       const uploadResponse = await fetch(
         `https://api.cloudinary.com/v1_1/${signed.cloudName}/image/upload`,

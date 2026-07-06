@@ -48,6 +48,21 @@ export function MemberRoster({
     }
   }
 
+  async function handleTransferOwnership(userId: string, fullName: string) {
+    if (!window.confirm(`Make ${fullName} the group owner? You'll become a Group Admin.`)) return;
+
+    setUpdatingId(userId);
+    try {
+      await fetchJson(`/api/tenants/${tenantSlug}/groups/${groupSlug}/transfer-ownership`, {
+        method: "PATCH",
+        body: { userId },
+      });
+      router.refresh();
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
   if (members.length === 0) {
     return <p className="text-sm text-neutral-500">No approved members yet.</p>;
   }
@@ -64,15 +79,25 @@ export function MemberRoster({
           </div>
 
           {isOwner && member.userId !== currentUserId && member.groupRole !== "GROUP_OWNER" ? (
-            <select
-              value={member.groupRole}
-              disabled={updatingId === member.userId}
-              onChange={(e) => handleRoleChange(member.userId, e.target.value as "MEMBER" | "GROUP_ADMIN")}
-              className="input w-auto py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="MEMBER">Member</option>
-              <option value="GROUP_ADMIN">Admin</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={member.groupRole}
+                disabled={updatingId === member.userId}
+                onChange={(e) => handleRoleChange(member.userId, e.target.value as "MEMBER" | "GROUP_ADMIN")}
+                className="input w-auto py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="MEMBER">Member</option>
+                <option value="GROUP_ADMIN">Admin</option>
+              </select>
+              <button
+                type="button"
+                disabled={updatingId === member.userId}
+                onClick={() => handleTransferOwnership(member.userId, member.fullName)}
+                className="whitespace-nowrap rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Make Owner
+              </button>
+            </div>
           ) : (
             <span className="rounded-full bg-secondary-100 px-2.5 py-1 text-xs font-semibold text-secondary-800">
               {ROLE_LABELS[member.groupRole] ?? member.groupRole}
