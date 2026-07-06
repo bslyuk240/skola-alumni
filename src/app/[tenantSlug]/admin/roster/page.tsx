@@ -51,7 +51,7 @@ export default async function MemberRosterPage({
     .orderBy(profiles.firstName);
 
   return (
-    <main className="flex-1 px-6 py-6">
+    <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
       <h1 className="text-xl font-semibold text-neutral-900">Members</h1>
       <p className="text-sm text-neutral-500">Full roster of approved members — search, review, and suspend access.</p>
 
@@ -60,6 +60,7 @@ export default async function MemberRosterPage({
       </div>
 
       <div className="mt-4 overflow-hidden rounded-lg border border-neutral-100 bg-white shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-300 bg-neutral-50 text-left text-xs font-semibold uppercase text-neutral-900">
@@ -107,6 +108,7 @@ export default async function MemberRosterPage({
             ))}
           </tbody>
         </table>
+        </div>
         {rows.length === 0 && (
           <p className="p-6 text-center text-sm text-neutral-500">No members match your search.</p>
         )}

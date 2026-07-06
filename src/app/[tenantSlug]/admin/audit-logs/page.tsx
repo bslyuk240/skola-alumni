@@ -47,7 +47,7 @@ export default async function AuditLogsPage({
     .limit(100);
 
   return (
-    <main className="flex-1 px-6 py-6">
+    <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
       <h1 className="text-xl font-semibold text-neutral-900">Audit Logs</h1>
       <p className="text-sm text-neutral-500">
         Append-only record of sensitive actions — role changes, presidency handovers, and payment
@@ -59,6 +59,7 @@ export default async function AuditLogsPage({
       </div>
 
       <div className="mt-4 overflow-hidden rounded-lg border border-neutral-100 bg-white shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-300 bg-neutral-50 text-left text-xs font-semibold uppercase text-neutral-900">
@@ -87,6 +88,7 @@ export default async function AuditLogsPage({
             ))}
           </tbody>
         </table>
+        </div>
         {rows.length === 0 && (
           <p className="p-6 text-center text-sm text-neutral-500">No audit log entries match your filters.</p>
         )}
