@@ -14,6 +14,7 @@ const createGroupSchema = z.object({
   type: z.enum(["CLASS_SET", "CHAPTER", "COMMITTEE"]),
   description: z.string().max(2000).optional(),
   requireJoinApproval: z.boolean().default(true),
+  securityQuestion: z.string().trim().min(3).max(300).optional(),
 });
 
 /** Any approved tenant member can create a group; the creator is auto-joined as GROUP_OWNER. */
@@ -58,7 +59,10 @@ export async function POST(
           slug,
           type: body.type,
           description: body.description,
-          requireJoinApproval: body.requireJoinApproval,
+          // A security question is only useful if a human actually reads the answer, so
+          // setting one implies manual review regardless of what the toggle was set to.
+          requireJoinApproval: body.securityQuestion ? true : body.requireJoinApproval,
+          securityQuestion: body.securityQuestion,
         })
         .returning();
 

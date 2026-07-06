@@ -8,6 +8,7 @@ export interface PendingRequest {
   membershipId: string;
   fullName: string;
   graduationYear: number | null;
+  securityAnswer: string | null;
 }
 
 export function PendingRequests({
@@ -49,6 +50,11 @@ export function PendingRequests({
             <p className="text-sm font-medium text-neutral-900">{request.fullName}</p>
             {request.graduationYear && (
               <p className="text-xs text-neutral-500">Class of {request.graduationYear}</p>
+            )}
+            {request.securityAnswer && (
+              <p className="mt-1 text-xs text-neutral-700">
+                <span className="font-medium">Answer:</span> {request.securityAnswer}
+              </p>
             )}
           </div>
           <div className="flex gap-2">

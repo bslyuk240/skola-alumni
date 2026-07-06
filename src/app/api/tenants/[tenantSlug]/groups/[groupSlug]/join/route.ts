@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { tenantMemberships, groupMemberships } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getTenantGroup } from "@/lib/group-access";
 import { handleApiError } from "@/lib/api-error";
+
+const joinSchema = z.object({
+  securityAnswer: z.string().trim().min(1).max(500).optional(),
+});
 
 export async function POST(
   req: NextRequest,
@@ -41,6 +46,12 @@ export async function POST(
       return NextResponse.json({ id: existingMembership.id, status: existingMembership.status });
     }
 
+    const body = joinSchema.parse(await req.json().catch(() => ({})));
+
+    if (resolved.group.securityQuestion && !body.securityAnswer) {
+      return NextResponse.json({ error: "Please answer the security question to request to join" }, { status: 400 });
+    }
+
     const autoApprove = !resolved.group.requireJoinApproval;
 
     const [membership] = await db
@@ -51,6 +62,7 @@ export async function POST(
         status: autoApprove ? "APPROVED" : "PENDING",
         groupRole: "MEMBER",
         approvedBy: autoApprove ? user.id : undefined,
+        securityAnswer: body.securityAnswer,
       })
       .returning();
 

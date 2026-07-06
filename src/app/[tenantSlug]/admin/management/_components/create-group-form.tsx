@@ -17,6 +17,7 @@ export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
   const [type, setType] = useState<(typeof GROUP_TYPES)[number]["value"]>("CLASS_SET");
   const [description, setDescription] = useState("");
   const [requireJoinApproval, setRequireJoinApproval] = useState(true);
+  const [securityQuestion, setSecurityQuestion] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -28,10 +29,17 @@ export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
     try {
       await fetchJson(`/api/tenants/${tenantSlug}/groups`, {
         method: "POST",
-        body: { name, type, description: description || undefined, requireJoinApproval },
+        body: {
+          name,
+          type,
+          description: description || undefined,
+          requireJoinApproval,
+          securityQuestion: securityQuestion.trim() || undefined,
+        },
       });
       setName("");
       setDescription("");
+      setSecurityQuestion("");
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Couldn't create the group.");
@@ -90,12 +98,31 @@ export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
         />
       </label>
 
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium text-neutral-700">Security question (optional)</span>
+        <input
+          value={securityQuestion}
+          onChange={(e) => setSecurityQuestion(e.target.value)}
+          placeholder="e.g. Who was our JSS3 form teacher?"
+          className="input"
+        />
+        <span className="text-xs text-neutral-500">
+          Shown to anyone requesting to join; you review the answer yourself before approving —
+          it&apos;s not auto-checked. Setting this forces manual approval.
+        </span>
+      </label>
+
       <div className="flex items-center justify-between py-1">
         <div>
           <p className="text-sm text-neutral-900">Require approval to join</p>
           <p className="text-xs text-neutral-500">Off lets any tenant member join instantly</p>
         </div>
-        <Toggle checked={requireJoinApproval} onChange={setRequireJoinApproval} label="Require approval to join" />
+        <Toggle
+          checked={Boolean(securityQuestion.trim()) || requireJoinApproval}
+          onChange={setRequireJoinApproval}
+          disabled={Boolean(securityQuestion.trim())}
+          label="Require approval to join"
+        />
       </div>
 
       <button

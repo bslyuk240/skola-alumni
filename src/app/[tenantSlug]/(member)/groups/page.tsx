@@ -79,13 +79,12 @@ export default async function GroupsPage({
                     Pending Approval
                   </span>
                 ) : (
-                  <div className="w-fit">
-                    <JoinButton
-                      tenantSlug={tenantSlug}
-                      groupSlug={group.slug}
-                      requireJoinApproval={group.requireJoinApproval}
-                    />
-                  </div>
+                  <JoinButton
+                    tenantSlug={tenantSlug}
+                    groupSlug={group.slug}
+                    requireJoinApproval={group.requireJoinApproval}
+                    securityQuestion={group.securityQuestion}
+                  />
                 )}
               </li>
             );

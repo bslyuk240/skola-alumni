@@ -55,6 +55,7 @@ export default async function GroupDetailPage({
         firstName: profiles.firstName,
         lastName: profiles.lastName,
         graduationYear: profiles.graduationYear,
+        securityAnswer: groupMemberships.securityAnswer,
       })
       .from(groupMemberships)
       .innerJoin(profiles, eq(profiles.userId, groupMemberships.userId))
@@ -64,6 +65,7 @@ export default async function GroupDetailPage({
       membershipId: row.membershipId,
       fullName: `${row.firstName} ${row.lastName}`,
       graduationYear: row.graduationYear,
+      securityAnswer: row.securityAnswer,
     }));
   }
 
@@ -120,6 +122,7 @@ export default async function GroupDetailPage({
               tenantSlug={tenantSlug}
               groupSlug={groupSlug}
               requireJoinApproval={resolved.group.requireJoinApproval}
+              securityQuestion={resolved.group.securityQuestion}
             />
           )}
 
@@ -132,6 +135,11 @@ export default async function GroupDetailPage({
       {isGroupAdmin && (
         <div className="rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-neutral-900">Pending Requests</h2>
+          {resolved.group.securityQuestion && (
+            <p className="mt-1 text-xs text-neutral-500">
+              Security question: <span className="italic">&ldquo;{resolved.group.securityQuestion}&rdquo;</span>
+            </p>
+          )}
           <div className="mt-2">
             <PendingRequests tenantSlug={tenantSlug} groupSlug={groupSlug} initialRequests={pendingRequests} />
           </div>
