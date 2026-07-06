@@ -58,41 +58,67 @@ export default async function AuditLogsPage({
         <AuditFilters initialAction={action ?? ""} initialFrom={from ?? ""} initialTo={to ?? ""} />
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-lg border border-neutral-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-neutral-300 bg-neutral-50 text-left text-xs font-semibold uppercase text-neutral-900">
-              <th className="px-4 py-3">Timestamp</th>
-              <th className="px-4 py-3">Action</th>
-              <th className="px-4 py-3">Actor</th>
-              <th className="px-4 py-3">Entity</th>
-            </tr>
-          </thead>
-          <tbody>
+      {rows.length === 0 ? (
+        <div className="mt-4 rounded-lg border border-neutral-100 bg-white p-6 text-center shadow-sm">
+          <p className="text-sm text-neutral-500">No audit log entries match your filters.</p>
+        </div>
+      ) : (
+        <>
+          {/* Card list below md — a 4-column table doesn't fit a phone screen. */}
+          <ul className="mt-4 flex flex-col gap-3 md:hidden">
             {rows.map((row) => (
-              <tr key={row.id} className="border-b border-neutral-100">
-                <td className="px-4 py-3 text-neutral-700">
-                  {new Date(row.createdAt).toLocaleString("en-NG")}
-                </td>
-                <td className="px-4 py-3">
+              <li key={row.id} className="rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
                   <span className="rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700">
                     {row.action.replace(/_/g, " ")}
                   </span>
-                </td>
-                <td className="px-4 py-3 text-neutral-700">{row.actorEmail ?? "System"}</td>
-                <td className="px-4 py-3 text-xs text-neutral-500">
+                  <span className="shrink-0 text-xs text-neutral-500">
+                    {new Date(row.createdAt).toLocaleString("en-NG")}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-neutral-700">{row.actorEmail ?? "System"}</p>
+                <p className="text-xs text-neutral-500">
                   {row.entityType}/{row.entityId.slice(0, 8)}
-                </td>
-              </tr>
+                </p>
+              </li>
             ))}
-          </tbody>
-        </table>
-        </div>
-        {rows.length === 0 && (
-          <p className="p-6 text-center text-sm text-neutral-500">No audit log entries match your filters.</p>
-        )}
-      </div>
+          </ul>
+
+          {/* Table from md up. */}
+          <div className="mt-4 hidden overflow-hidden rounded-lg border border-neutral-100 bg-white shadow-sm md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-300 bg-neutral-50 text-left text-xs font-semibold uppercase text-neutral-900">
+                    <th className="px-4 py-3">Timestamp</th>
+                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">Actor</th>
+                    <th className="px-4 py-3">Entity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className="border-b border-neutral-100">
+                      <td className="px-4 py-3 text-neutral-700">
+                        {new Date(row.createdAt).toLocaleString("en-NG")}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700">
+                          {row.action.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-700">{row.actorEmail ?? "System"}</td>
+                      <td className="px-4 py-3 text-xs text-neutral-500">
+                        {row.entityType}/{row.entityId.slice(0, 8)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </main>
   );
 }
