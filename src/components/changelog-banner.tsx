@@ -30,7 +30,7 @@ export function ChangelogBanner() {
   if (!visible || !latest) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-xl rounded-lg border border-neutral-200 bg-white p-4 shadow-lg sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-96">
+    <div className="fixed inset-x-3 bottom-20 z-50 mx-auto max-w-xl rounded-lg border border-neutral-200 bg-white p-4 shadow-lg sm:inset-x-auto sm:right-4 sm:bottom-20 sm:w-96">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary-100 text-primary-700">
           <Sparkles className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
