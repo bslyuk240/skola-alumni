@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { groups, groupMemberships } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
+import { getApprovedTenantMembership } from "@/lib/tenant-access";
 import { getBillingLockStatus } from "@/lib/billing-status";
 import { handleApiError } from "@/lib/api-error";
 import { slugify } from "@/lib/slug";
@@ -16,7 +16,7 @@ const createGroupSchema = z.object({
   requireJoinApproval: z.boolean().default(true),
 });
 
-/** Tenant admin creates a group; the creator is auto-joined as GROUP_OWNER. */
+/** Any approved tenant member can create a group; the creator is auto-joined as GROUP_OWNER. */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ tenantSlug: string }> }
@@ -29,9 +29,7 @@ export async function POST(
       return NextResponse.json({ error: "Access Denied" }, { status: 401 });
     }
 
-    const authorized = await getAuthorizedTenantMembership(user.id, tenantSlug, [
-      "President/School Owner",
-    ]);
+    const authorized = await getApprovedTenantMembership(user.id, tenantSlug);
     if (!authorized) {
       return NextResponse.json({ error: "Resource Not Found" }, { status: 404 });
     }

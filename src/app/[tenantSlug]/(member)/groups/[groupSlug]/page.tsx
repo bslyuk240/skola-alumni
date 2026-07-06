@@ -7,6 +7,7 @@ import { getTenantGroup, getAuthorizedGroupMembership } from "@/lib/group-access
 import { getPostFeed } from "@/lib/post-feed";
 import { JoinButton } from "../_components/join-button";
 import { PendingRequests, type PendingRequest } from "./_components/pending-requests";
+import { MemberRoster, type RosterMember } from "./_components/member-roster";
 import { PostComposer } from "../../home/_components/post-composer";
 import { PostCard } from "../../home/_components/post-card";
 
@@ -65,6 +66,28 @@ export default async function GroupDetailPage({
     }));
   }
 
+  let members: RosterMember[] = [];
+  if (isGroupAdmin) {
+    const rows = await db
+      .select({
+        userId: groupMemberships.userId,
+        groupRole: groupMemberships.groupRole,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        graduationYear: profiles.graduationYear,
+      })
+      .from(groupMemberships)
+      .innerJoin(profiles, eq(profiles.userId, groupMemberships.userId))
+      .where(and(eq(groupMemberships.groupId, resolved.group.id), eq(groupMemberships.status, "APPROVED")));
+
+    members = rows.map((row) => ({
+      userId: row.userId,
+      groupRole: row.groupRole,
+      fullName: `${row.firstName} ${row.lastName}`,
+      graduationYear: row.graduationYear,
+    }));
+  }
+
   // Group posts are only visible to approved members of this group — not to visitors browsing
   // the group page before joining.
   const isApprovedMember = myMembership?.status === "APPROVED";
@@ -106,6 +129,21 @@ export default async function GroupDetailPage({
           <h2 className="text-sm font-semibold text-neutral-900">Pending Requests</h2>
           <div className="mt-2">
             <PendingRequests tenantSlug={tenantSlug} groupSlug={groupSlug} initialRequests={pendingRequests} />
+          </div>
+        </div>
+      )}
+
+      {isGroupAdmin && (
+        <div className="rounded-lg border border-neutral-100 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-neutral-900">Members</h2>
+          <div className="mt-2">
+            <MemberRoster
+              tenantSlug={tenantSlug}
+              groupSlug={groupSlug}
+              currentUserId={user?.id ?? ""}
+              isOwner={myMembership?.groupRole === "GROUP_OWNER"}
+              initialMembers={members}
+            />
           </div>
         </div>
       )}
