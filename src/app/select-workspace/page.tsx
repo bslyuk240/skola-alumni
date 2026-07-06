@@ -5,13 +5,6 @@ import { db } from "@/db";
 import { tenantMemberships, tenants, roleAssignments, systemRoles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 
-const ADMIN_ROLE_NAMES = new Set([
-  "President/School Owner",
-  "Finance Admin",
-  "Secretary",
-  "Announcement Manager",
-]);
-
 async function getWorkspaces(userId: string) {
   const memberships = await db
     .select({
@@ -36,18 +29,15 @@ async function getWorkspaces(userId: string) {
     rolesByMembership.set(row.membershipId, list);
   }
 
+  // Admins are members first — they land in the same home feed as everyone else and reach the
+  // admin dashboard from there (Profile → Admin Dashboard), rather than skipping the member
+  // experience entirely on login.
   return memberships.map((membership) => {
     const roles = rolesByMembership.get(membership.membershipId) ?? [];
-    const isAdmin = roles.some((role) => ADMIN_ROLE_NAMES.has(role));
     return {
       ...membership,
       roles,
-      destination:
-        membership.status !== "APPROVED"
-          ? `/${membership.tenantSlug}/home`
-          : isAdmin
-            ? `/${membership.tenantSlug}/admin`
-            : `/${membership.tenantSlug}/home`,
+      destination: `/${membership.tenantSlug}/home`,
     };
   });
 }
