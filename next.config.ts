@@ -6,7 +6,10 @@ const withPWA = withPWAInit({
   disable: process.env.NODE_ENV === "development",
   register: true,
   workboxOptions: {
-    skipWaiting: true,
+    // Left false on purpose: an installed PWA shouldn't swap its running code out from under the
+    // user mid-session. The new service worker installs and waits; PwaUpdateBanner posts a
+    // SKIP_WAITING message once the user chooses to refresh.
+    skipWaiting: false,
   },
 });
 

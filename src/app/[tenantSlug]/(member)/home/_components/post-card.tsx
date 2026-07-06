@@ -11,6 +11,13 @@ function isVideoUrl(url: string) {
   return url.includes("/video/upload/");
 }
 
+/** Cloudinary can render any frame of an uploaded video as a static image — no separate upload
+ * needed — by inserting a "start offset" transformation and swapping the extension for an image
+ * format. so_0 grabs the very first frame, which is what browsers show while a video is loading. */
+function getVideoPosterUrl(url: string) {
+  return url.replace("/video/upload/", "/video/upload/so_0/").replace(/\.[^/.]+$/, ".jpg");
+}
+
 export interface PostComment {
   id: string;
   authorName: string;
@@ -123,7 +130,14 @@ export function PostCard({ tenantSlug, post }: { tenantSlug: string; post: PostC
         >
           {mediaIsVideo ? (
             <>
-              <video src={post.mediaUrl} className="h-full w-full object-cover" muted playsInline />
+              <video
+                src={post.mediaUrl}
+                poster={getVideoPosterUrl(post.mediaUrl)}
+                preload="metadata"
+                className="h-full w-full object-cover"
+                muted
+                playsInline
+              />
               <span className="absolute inset-0 flex items-center justify-center bg-neutral-900/20">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90">
                   <Play className="ml-0.5 h-5 w-5 text-neutral-900" fill="currentColor" />
@@ -152,6 +166,7 @@ export function PostCard({ tenantSlug, post }: { tenantSlug: string; post: PostC
           {mediaIsVideo ? (
             <video
               src={post.mediaUrl}
+              poster={getVideoPosterUrl(post.mediaUrl)}
               className="max-h-full max-w-full rounded-md"
               controls
               autoPlay

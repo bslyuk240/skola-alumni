@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
+import { PwaUpdateBanner } from "@/components/pwa-update-banner";
+import { ChangelogBanner } from "@/components/changelog-banner";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -43,7 +45,9 @@ export default function RootLayout({
         <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
           <ThemeProvider>
             {children}
+            <PwaUpdateBanner />
             <PwaInstallBanner />
+            <ChangelogBanner />
           </ThemeProvider>
         </body>
       </html>
