@@ -21,6 +21,7 @@ import {
   LogOut,
   Menu,
   X,
+  ArrowLeftRight,
 } from "lucide-react";
 
 interface NavItem {
@@ -109,7 +110,7 @@ export function AdminSidebar({
     { href: `/${tenantSlug}/admin/announcements`, label: "Announcements", Icon: Megaphone },
     { href: `/${tenantSlug}/admin/moderation`, label: "Moderation", Icon: ShieldAlert },
     { href: `/${tenantSlug}/admin/dues`, label: "Dues & Payments", Icon: Wallet },
-    { href: `/${tenantSlug}/donations`, label: "Donations", Icon: HeartHandshake },
+    { href: `/${tenantSlug}/admin/donations`, label: "Donations", Icon: HeartHandshake },
     { href: `/${tenantSlug}/admin/roles`, label: "Roles & Governance", Icon: ShieldCheck },
     { href: `/${tenantSlug}/admin/billing`, label: "Billing & Subscription", Icon: CreditCard },
     { href: `/${tenantSlug}/admin/audit-logs`, label: "Audit Logs", Icon: ScrollText },
@@ -136,6 +137,13 @@ export function AdminSidebar({
       <span className="mb-2 flex w-fit items-center rounded-full bg-secondary-100 px-2.5 py-1 text-xs font-semibold text-secondary-800">
         {planLabel}
       </span>
+      <Link
+        href={`/${tenantSlug}/home`}
+        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+      >
+        <ArrowLeftRight className="h-4 w-4" strokeWidth={1.75} />
+        Switch to Member View
+      </Link>
       <button
         type="button"
         onClick={() => signOut({ redirectUrl: "/" })}

@@ -3,7 +3,10 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
 import { ProfileForm } from "./_components/profile-form";
+
+const ADMIN_ROLES = ["President/School Owner", "Finance Admin", "Secretary", "Announcement Manager"];
 
 const DEFAULT_PRIVACY_SETTINGS = {
   show_phone: false,
@@ -15,14 +18,23 @@ const DEFAULT_PRIVACY_SETTINGS = {
   allow_messages: true,
 };
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  params,
+}: {
+  params: Promise<{ tenantSlug: string }>;
+}) {
+  const { tenantSlug } = await params;
+
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in");
 
   const profile = await db.query.profiles.findFirst({ where: eq(profiles.userId, user.id) });
+  const isAdmin = Boolean(await getAuthorizedTenantMembership(user.id, tenantSlug, ADMIN_ROLES));
 
   return (
     <ProfileForm
+      tenantSlug={tenantSlug}
+      isAdmin={isAdmin}
       initial={{
         email: user.email,
         firstName: profile?.firstName ?? "",

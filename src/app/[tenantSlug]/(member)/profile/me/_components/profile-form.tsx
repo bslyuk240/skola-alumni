@@ -3,7 +3,7 @@
 import { useState, useRef, type FormEvent } from "react";
 import Link from "next/link";
 import { useClerk } from "@clerk/nextjs";
-import { ImagePlus, LogOut, HelpCircle, ChevronRight } from "lucide-react";
+import { ImagePlus, LogOut, HelpCircle, ChevronRight, ShieldCheck } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
 import { Toggle } from "@/components/ui/toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -54,7 +54,15 @@ const PRIVACY_TOGGLES: { key: keyof PrivacySettings; label: string; helper: stri
   { key: "allow_messages", label: "Allow direct messages", helper: "" },
 ];
 
-export function ProfileForm({ initial }: { initial: ProfileData }) {
+export function ProfileForm({
+  tenantSlug,
+  isAdmin,
+  initial,
+}: {
+  tenantSlug: string;
+  isAdmin: boolean;
+  initial: ProfileData;
+}) {
   const { signOut } = useClerk();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initial);
@@ -142,6 +150,20 @@ export function ProfileForm({ initial }: { initial: ProfileData }) {
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-4 py-6">
       <h1 className="text-lg font-semibold text-neutral-900">My Profile</h1>
+
+      {isAdmin && (
+        <Link
+          href={`/${tenantSlug}/admin`}
+          className="flex items-center gap-3 rounded-lg border border-primary-100 bg-primary-100 p-4 shadow-sm hover:bg-primary-100/80"
+        >
+          <ShieldCheck className="h-5 w-5 shrink-0 text-primary-700" strokeWidth={1.75} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-primary-700">Admin Dashboard</p>
+            <p className="text-xs text-primary-700/80">Manage members, dues, groups, and more</p>
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-primary-700" strokeWidth={1.75} />
+        </Link>
+      )}
 
       {errorMessage && (
         <div className="rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
