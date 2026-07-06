@@ -3,7 +3,9 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { tenants, groups, groupMemberships } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { getApprovedTenantMembership } from "@/lib/tenant-access";
 import { JoinButton } from "./_components/join-button";
+import { CreateGroupToggle } from "./_components/create-group-toggle";
 
 const TYPE_LABELS: Record<string, string> = {
   CLASS_SET: "Class Set",
@@ -23,6 +25,8 @@ export default async function GroupsPage({
 
   const user = await getCurrentUser();
 
+  const canCreateGroup = user ? Boolean(await getApprovedTenantMembership(user.id, tenantSlug)) : false;
+
   const tenantGroups = await db.query.groups.findMany({
     where: and(eq(groups.tenantId, tenant.id), eq(groups.isArchived, false)),
   });
@@ -35,6 +39,8 @@ export default async function GroupsPage({
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
       <h1 className="text-lg font-semibold text-neutral-900">Groups</h1>
+
+      {canCreateGroup && <CreateGroupToggle tenantSlug={tenantSlug} />}
 
       {tenantGroups.length === 0 ? (
         <div className="rounded-lg border border-neutral-100 bg-white p-6 text-center shadow-sm">
@@ -73,13 +79,12 @@ export default async function GroupsPage({
                     Pending Approval
                   </span>
                 ) : (
-                  <div className="w-fit">
-                    <JoinButton
-                      tenantSlug={tenantSlug}
-                      groupSlug={group.slug}
-                      requireJoinApproval={group.requireJoinApproval}
-                    />
-                  </div>
+                  <JoinButton
+                    tenantSlug={tenantSlug}
+                    groupSlug={group.slug}
+                    requireJoinApproval={group.requireJoinApproval}
+                    securityQuestion={group.securityQuestion}
+                  />
                 )}
               </li>
             );

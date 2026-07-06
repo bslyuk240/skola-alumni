@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { groups, groupMemberships } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
+import { getApprovedTenantMembership } from "@/lib/tenant-access";
 import { getBillingLockStatus } from "@/lib/billing-status";
 import { handleApiError } from "@/lib/api-error";
 import { slugify } from "@/lib/slug";
@@ -14,9 +14,10 @@ const createGroupSchema = z.object({
   type: z.enum(["CLASS_SET", "CHAPTER", "COMMITTEE"]),
   description: z.string().max(2000).optional(),
   requireJoinApproval: z.boolean().default(true),
+  securityQuestion: z.string().trim().min(3).max(300).optional(),
 });
 
-/** Tenant admin creates a group; the creator is auto-joined as GROUP_OWNER. */
+/** Any approved tenant member can create a group; the creator is auto-joined as GROUP_OWNER. */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ tenantSlug: string }> }
@@ -29,9 +30,7 @@ export async function POST(
       return NextResponse.json({ error: "Access Denied" }, { status: 401 });
     }
 
-    const authorized = await getAuthorizedTenantMembership(user.id, tenantSlug, [
-      "President/School Owner",
-    ]);
+    const authorized = await getApprovedTenantMembership(user.id, tenantSlug);
     if (!authorized) {
       return NextResponse.json({ error: "Resource Not Found" }, { status: 404 });
     }
@@ -60,7 +59,10 @@ export async function POST(
           slug,
           type: body.type,
           description: body.description,
-          requireJoinApproval: body.requireJoinApproval,
+          // A security question is only useful if a human actually reads the answer, so
+          // setting one implies manual review regardless of what the toggle was set to.
+          requireJoinApproval: body.securityQuestion ? true : body.requireJoinApproval,
+          securityQuestion: body.securityQuestion,
         })
         .returning();
 

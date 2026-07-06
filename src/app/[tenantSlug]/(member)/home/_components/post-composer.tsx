@@ -10,6 +10,7 @@ interface CloudinarySignedParams {
   timestamp: number;
   folder: string;
   public_id?: string;
+  allowed_formats?: string;
   signature: string;
   apiKey: string;
   cloudName: string;
@@ -76,6 +77,7 @@ export function PostComposer({
         formData.append("api_key", signed.apiKey);
         formData.append("folder", signed.folder);
         if (signed.public_id) formData.append("public_id", signed.public_id);
+        if (signed.allowed_formats) formData.append("allowed_formats", signed.allowed_formats);
 
         // "auto" lets Cloudinary detect image vs video from the file itself — no signing
         // changes needed since resource_type isn't part of the signed parameters.

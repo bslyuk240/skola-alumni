@@ -1,6 +1,6 @@
 export async function fetchJson<T = unknown>(
   url: string,
-  options: { method: "GET" | "POST" | "PATCH"; body?: unknown } = { method: "GET" }
+  options: { method: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown } = { method: "GET" }
 ): Promise<T> {
   const response = await fetch(url, {
     method: options.method,

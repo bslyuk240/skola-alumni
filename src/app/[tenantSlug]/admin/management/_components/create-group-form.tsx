@@ -11,12 +11,21 @@ const GROUP_TYPES = [
   { value: "COMMITTEE", label: "Committee" },
 ] as const;
 
-export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
+export function CreateGroupForm({
+  tenantSlug,
+  onSuccess,
+  onCancel,
+}: {
+  tenantSlug: string;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [type, setType] = useState<(typeof GROUP_TYPES)[number]["value"]>("CLASS_SET");
   const [description, setDescription] = useState("");
   const [requireJoinApproval, setRequireJoinApproval] = useState(true);
+  const [securityQuestion, setSecurityQuestion] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -28,11 +37,19 @@ export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
     try {
       await fetchJson(`/api/tenants/${tenantSlug}/groups`, {
         method: "POST",
-        body: { name, type, description: description || undefined, requireJoinApproval },
+        body: {
+          name,
+          type,
+          description: description || undefined,
+          requireJoinApproval,
+          securityQuestion: securityQuestion.trim() || undefined,
+        },
       });
       setName("");
       setDescription("");
+      setSecurityQuestion("");
       router.refresh();
+      onSuccess?.();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Couldn't create the group.");
     } finally {
@@ -90,21 +107,47 @@ export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
         />
       </label>
 
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium text-neutral-700">Security question (optional)</span>
+        <input
+          value={securityQuestion}
+          onChange={(e) => setSecurityQuestion(e.target.value)}
+          placeholder="e.g. Who was our JSS3 form teacher?"
+          className="input"
+        />
+      </label>
+
       <div className="flex items-center justify-between py-1">
         <div>
           <p className="text-sm text-neutral-900">Require approval to join</p>
           <p className="text-xs text-neutral-500">Off lets any tenant member join instantly</p>
         </div>
-        <Toggle checked={requireJoinApproval} onChange={setRequireJoinApproval} label="Require approval to join" />
+        <Toggle
+          checked={Boolean(securityQuestion.trim()) || requireJoinApproval}
+          onChange={setRequireJoinApproval}
+          disabled={Boolean(securityQuestion.trim())}
+          label="Require approval to join"
+        />
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="mt-1 rounded-md bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
-      >
-        {submitting ? "Creating..." : "Create Group"}
-      </button>
+      <div className="mt-1 flex gap-2">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="flex-1 rounded-md bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
+        >
+          {submitting ? "Creating..." : "Create Group"}
+        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   );
 }

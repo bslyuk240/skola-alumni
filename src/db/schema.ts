@@ -119,6 +119,9 @@ export const groups = pgTable("groups", {
   type: varchar("type", { length: 50 }).notNull(), // CLASS_SET | CHAPTER | COMMITTEE
   description: text("description"),
   requireJoinApproval: boolean("require_join_approval").default(true).notNull(),
+  // Optional prompt shown to would-be joiners (e.g. "Who was our JSS3 form teacher?"); the
+  // answer is not auto-checked, it's surfaced to admins reviewing the join request instead.
+  securityQuestion: text("security_question"),
   isArchived: boolean("is_archived").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -134,6 +137,8 @@ export const groupMemberships = pgTable("group_memberships", {
   status: varchar("status", { length: 50 }).notNull(), // PENDING | APPROVED | REJECTED | BANNED
   groupRole: varchar("group_role", { length: 50 }).default("MEMBER").notNull(),
   approvedBy: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+  // Answer submitted to the group's securityQuestion, if it had one — reviewed manually by admins.
+  securityAnswer: text("security_answer"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   unique("unique_user_group_membership").on(table.groupId, table.userId),
