@@ -37,37 +37,40 @@ export default async function MemberDuesPage({
 }) {
   const { tenantSlug } = await params;
 
-  const tenant = await db.query.tenants.findFirst({ where: eq(tenants.slug, tenantSlug) });
-  if (!tenant) return null;
+  // Independent lookups — the tenant record and the current session don't depend on each other.
+  const [tenant, user] = await Promise.all([
+    db.query.tenants.findFirst({ where: eq(tenants.slug, tenantSlug) }),
+    getCurrentUser(),
+  ]);
+  if (!tenant || !user) return null;
 
-  const user = await getCurrentUser();
-  if (!user) return null;
-
-  const myGroups = await db
-    .select({ groupId: groupMemberships.groupId })
-    .from(groupMemberships)
-    .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
-    .where(
-      and(eq(groupMemberships.userId, user.id), eq(groupMemberships.status, "APPROVED"), eq(groups.tenantId, tenant.id))
-    );
+  // Also independent of each other — myDues doesn't need myGroupIds, only myCampaigns does.
+  const [myGroups, myDues] = await Promise.all([
+    db
+      .select({ groupId: groupMemberships.groupId })
+      .from(groupMemberships)
+      .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
+      .where(
+        and(eq(groupMemberships.userId, user.id), eq(groupMemberships.status, "APPROVED"), eq(groups.tenantId, tenant.id))
+      ),
+    // Includes both tenant-wide and group-scoped dues (a payment row exists for every group this
+    // member belongs to that has one) — groupName/groupSlug says where each one came from.
+    db
+      .select({
+        dueId: dues.id,
+        title: dues.title,
+        amount: dues.amount,
+        dueDate: dues.dueDate,
+        status: payments.status,
+        groupName: groups.name,
+      })
+      .from(payments)
+      .innerJoin(dues, eq(dues.id, payments.dueId))
+      .leftJoin(groups, eq(groups.id, dues.groupId))
+      .where(and(eq(dues.tenantId, tenant.id), eq(payments.userId, user.id)))
+      .orderBy(dues.dueDate),
+  ]);
   const myGroupIds = myGroups.map((row) => row.groupId);
-
-  // Includes both tenant-wide and group-scoped dues (a payment row exists for every group this
-  // member belongs to that has one) — groupName/groupSlug says where each one came from.
-  const myDues = await db
-    .select({
-      dueId: dues.id,
-      title: dues.title,
-      amount: dues.amount,
-      dueDate: dues.dueDate,
-      status: payments.status,
-      groupName: groups.name,
-    })
-    .from(payments)
-    .innerJoin(dues, eq(dues.id, payments.dueId))
-    .leftJoin(groups, eq(groups.id, dues.groupId))
-    .where(and(eq(dues.tenantId, tenant.id), eq(payments.userId, user.id)))
-    .orderBy(dues.dueDate);
 
   // Active campaigns this member can give to: tenant-wide ones, plus any run by a group they
   // belong to.

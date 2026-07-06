@@ -24,60 +24,79 @@ export default async function MemberProfilePage({
 }) {
   const { tenantSlug, userId } = await params;
 
-  const tenant = await db.query.tenants.findFirst({ where: eq(tenants.slug, tenantSlug) });
+  // Independent of one another — the tenant record and the viewer's own session don't depend on
+  // each other.
+  const [tenant, viewer] = await Promise.all([
+    db.query.tenants.findFirst({ where: eq(tenants.slug, tenantSlug) }),
+    getCurrentUser(),
+  ]);
   if (!tenant) notFound();
 
-  const row = await db
-    .select({
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      avatarUrl: profiles.avatarUrl,
-      graduationYear: profiles.graduationYear,
-      bio: profiles.bio,
-      locationCity: profiles.locationCity,
-      locationCountry: profiles.locationCountry,
-      industry: profiles.industry,
-      occupation: profiles.occupation,
-      businessName: profiles.businessName,
-      businessDesc: profiles.businessDesc,
-      phoneNumber: profiles.phoneNumber,
-      privacySettings: profiles.privacySettings,
-      email: users.email,
-    })
-    .from(tenantMemberships)
-    .innerJoin(profiles, eq(profiles.userId, tenantMemberships.userId))
-    .innerJoin(users, eq(users.id, tenantMemberships.userId))
-    .where(
-      and(
-        eq(tenantMemberships.tenantId, tenant.id),
-        eq(tenantMemberships.userId, userId),
-        eq(tenantMemberships.status, "APPROVED")
+  // Three independent reads: the profile owner's data, the groups they belong to, and (if
+  // there's a viewer) the groups the viewer belongs to — none of these depend on each other.
+  const [row, ownerGroups, viewerGroups] = await Promise.all([
+    db
+      .select({
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        avatarUrl: profiles.avatarUrl,
+        graduationYear: profiles.graduationYear,
+        bio: profiles.bio,
+        locationCity: profiles.locationCity,
+        locationCountry: profiles.locationCountry,
+        industry: profiles.industry,
+        occupation: profiles.occupation,
+        businessName: profiles.businessName,
+        businessDesc: profiles.businessDesc,
+        phoneNumber: profiles.phoneNumber,
+        privacySettings: profiles.privacySettings,
+        email: users.email,
+      })
+      .from(tenantMemberships)
+      .innerJoin(profiles, eq(profiles.userId, tenantMemberships.userId))
+      .innerJoin(users, eq(users.id, tenantMemberships.userId))
+      .where(
+        and(
+          eq(tenantMemberships.tenantId, tenant.id),
+          eq(tenantMemberships.userId, userId),
+          eq(tenantMemberships.status, "APPROVED")
+        )
       )
-    )
-    .then((rows) => rows[0]);
+      .then((rows) => rows[0]),
+    db
+      .select({ groupId: groupMemberships.groupId })
+      .from(groupMemberships)
+      .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
+      .where(
+        and(
+          eq(groupMemberships.userId, userId),
+          eq(groupMemberships.status, "APPROVED"),
+          eq(groups.tenantId, tenant.id)
+        )
+      ),
+    // Group posts are only visible to viewers who are also an approved member of that same
+    // group — general community posts (groupId null) are visible to anyone viewing the profile.
+    viewer
+      ? db
+          .select({ groupId: groupMemberships.groupId })
+          .from(groupMemberships)
+          .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
+          .where(
+            and(
+              eq(groupMemberships.userId, viewer.id),
+              eq(groupMemberships.status, "APPROVED"),
+              eq(groups.tenantId, tenant.id)
+            )
+          )
+      : Promise.resolve([]),
+  ]);
 
   if (!row) notFound();
 
   const privacy = row.privacySettings as PrivacySettings;
   const fullName = `${row.firstName} ${row.lastName}`;
+  const groupCount = ownerGroups.length;
 
-  // Group posts are only visible to viewers who are also an approved member of that same group —
-  // general community posts (groupId null) are visible to anyone viewing the profile.
-  const viewer = await getCurrentUser();
-
-  const viewerGroups = viewer
-    ? await db
-        .select({ groupId: groupMemberships.groupId })
-        .from(groupMemberships)
-        .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
-        .where(
-          and(
-            eq(groupMemberships.userId, viewer.id),
-            eq(groupMemberships.status, "APPROVED"),
-            eq(groups.tenantId, tenant.id)
-          )
-        )
-    : [];
   const viewerGroupIds = viewerGroups.map((g) => g.groupId);
 
   const visibilityCondition =
@@ -92,19 +111,6 @@ export default async function MemberProfilePage({
     )!,
     viewer?.id ?? null
   );
-
-  const ownerGroups = await db
-    .select({ groupId: groupMemberships.groupId })
-    .from(groupMemberships)
-    .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
-    .where(
-      and(
-        eq(groupMemberships.userId, userId),
-        eq(groupMemberships.status, "APPROVED"),
-        eq(groups.tenantId, tenant.id)
-      )
-    );
-  const groupCount = ownerGroups.length;
 
   const showStats = authorPosts.length > 0 || (privacy.show_groups && groupCount > 0);
 
