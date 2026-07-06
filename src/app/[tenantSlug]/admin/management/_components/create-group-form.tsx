@@ -11,7 +11,15 @@ const GROUP_TYPES = [
   { value: "COMMITTEE", label: "Committee" },
 ] as const;
 
-export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
+export function CreateGroupForm({
+  tenantSlug,
+  onSuccess,
+  onCancel,
+}: {
+  tenantSlug: string;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [type, setType] = useState<(typeof GROUP_TYPES)[number]["value"]>("CLASS_SET");
@@ -41,6 +49,7 @@ export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
       setDescription("");
       setSecurityQuestion("");
       router.refresh();
+      onSuccess?.();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Couldn't create the group.");
     } finally {
@@ -106,10 +115,6 @@ export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
           placeholder="e.g. Who was our JSS3 form teacher?"
           className="input"
         />
-        <span className="text-xs text-neutral-500">
-          Shown to anyone requesting to join; you review the answer yourself before approving —
-          it&apos;s not auto-checked. Setting this forces manual approval.
-        </span>
       </label>
 
       <div className="flex items-center justify-between py-1">
@@ -125,13 +130,24 @@ export function CreateGroupForm({ tenantSlug }: { tenantSlug: string }) {
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="mt-1 rounded-md bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
-      >
-        {submitting ? "Creating..." : "Create Group"}
-      </button>
+      <div className="mt-1 flex gap-2">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="flex-1 rounded-md bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
+        >
+          {submitting ? "Creating..." : "Create Group"}
+        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   );
 }
