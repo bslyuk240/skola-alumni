@@ -423,6 +423,22 @@ export default function SignUpPage() {
         >
           {submitting ? "Creating account..." : intent === "tenant" ? "Register Association" : "Request to Join Association"}
         </button>
+
+        <p className="text-center text-xs text-neutral-500">
+          By continuing, you agree to our{" "}
+          <Link href="/legal/terms" className="text-primary-600 hover:underline">
+            Terms
+          </Link>
+          ,{" "}
+          <Link href="/legal/privacy" className="text-primary-600 hover:underline">
+            Privacy Policy
+          </Link>
+          , and{" "}
+          <Link href="/legal/billing" className="text-primary-600 hover:underline">
+            Billing Policy
+          </Link>
+          .
+        </p>
       </form>
     </AuthShell>
   );

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, type FormEvent } from "react";
+import Link from "next/link";
 import { useClerk } from "@clerk/nextjs";
-import { ImagePlus, LogOut } from "lucide-react";
+import { ImagePlus, LogOut, HelpCircle, ChevronRight } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
 import { Toggle } from "@/components/ui/toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -240,6 +241,40 @@ export function ProfileForm({ initial }: { initial: ProfileData }) {
               />
             </div>
           ))}
+        </section>
+
+        <section className="flex flex-col divide-y divide-neutral-100 rounded-lg border border-neutral-100 bg-white shadow-sm">
+          <Link
+            href="/help"
+            className="flex items-center justify-between gap-2 px-4 py-3 text-sm text-neutral-900 hover:bg-neutral-50"
+          >
+            <span className="flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-neutral-500" strokeWidth={1.75} />
+              Help &amp; FAQ
+            </span>
+            <ChevronRight className="h-4 w-4 text-neutral-400" strokeWidth={1.75} />
+          </Link>
+          <Link
+            href="/legal/terms"
+            className="flex items-center justify-between gap-2 px-4 py-3 text-sm text-neutral-900 hover:bg-neutral-50"
+          >
+            Terms of Service
+            <ChevronRight className="h-4 w-4 text-neutral-400" strokeWidth={1.75} />
+          </Link>
+          <Link
+            href="/legal/privacy"
+            className="flex items-center justify-between gap-2 px-4 py-3 text-sm text-neutral-900 hover:bg-neutral-50"
+          >
+            Privacy Policy
+            <ChevronRight className="h-4 w-4 text-neutral-400" strokeWidth={1.75} />
+          </Link>
+          <Link
+            href="/legal/billing"
+            className="flex items-center justify-between gap-2 px-4 py-3 text-sm text-neutral-900 hover:bg-neutral-50"
+          >
+            Billing &amp; Refund Policy
+            <ChevronRight className="h-4 w-4 text-neutral-400" strokeWidth={1.75} />
+          </Link>
         </section>
 
         <button
