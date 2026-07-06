@@ -33,7 +33,7 @@ export default async function TenantSupportPage({
   });
 
   return (
-    <main className="flex-1 px-6 py-6">
+    <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
       <h1 className="text-xl font-semibold text-neutral-900">Support</h1>
       <p className="text-sm text-neutral-500">Reach the Skola Alumni platform team with an issue or request.</p>
 

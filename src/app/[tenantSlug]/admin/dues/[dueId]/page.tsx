@@ -77,7 +77,7 @@ export default async function DueDetailPage({
   const others = rows.filter((row) => row.status !== "PENDING_CONFIRMATION");
 
   return (
-    <main className="flex-1 px-6 py-6">
+    <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
       <h1 className="text-xl font-semibold text-neutral-900">{due.title}</h1>
       <p className="text-sm text-neutral-500">
         {formatNaira(Number(due.amount))} · Due {new Date(due.dueDate).toLocaleDateString("en-NG")}

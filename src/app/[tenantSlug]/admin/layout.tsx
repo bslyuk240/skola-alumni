@@ -46,7 +46,7 @@ export default async function TenantAdminLayout({
   const lockStatus = await getBillingLockStatus(tenant.id);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       <AdminSidebar
         tenantSlug={tenantSlug}
         tenantName={tenant.name}
@@ -56,7 +56,7 @@ export default async function TenantAdminLayout({
       <div className="flex flex-1 flex-col bg-neutral-50">
         {lockStatus.message && (
           <div
-            className={`flex items-center justify-between px-6 py-3 text-sm ${
+            className={`flex flex-col items-start gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-6 ${
               lockStatus.locked ? "bg-error-600 text-white" : "bg-warning-100 text-warning-700"
             }`}
           >
