@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronRight, Wallet } from "lucide-react";
+import { ArrowLeft, ChevronRight, Wallet, HeartHandshake } from "lucide-react";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { groupMemberships, profiles, posts } from "@/db/schema";
@@ -223,6 +223,22 @@ export default async function GroupInfoPage({
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-neutral-900">Group Dues</p>
             <p className="text-xs text-neutral-500">Create dues and verify payments for this group</p>
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" strokeWidth={1.75} />
+        </Link>
+      )}
+
+      {isApprovedMember && (
+        <Link
+          href={`/${tenantSlug}/groups/${groupSlug}/donations`}
+          className="flex items-center gap-3 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm hover:bg-neutral-50"
+        >
+          <HeartHandshake className="h-4 w-4 shrink-0 text-neutral-500" strokeWidth={1.75} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-neutral-900">Group Donations</p>
+            <p className="text-xs text-neutral-500">
+              {isGroupAdmin ? "Run campaigns and give to this group" : "Give to this group's campaigns"}
+            </p>
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" strokeWidth={1.75} />
         </Link>

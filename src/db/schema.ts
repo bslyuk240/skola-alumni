@@ -247,6 +247,41 @@ export const paymentReceipts = pgTable("payment_receipts", {
   index("idx_receipts_payment").on(table.paymentId),
 ]);
 
+// --- 16b. donation_campaigns ---
+export const donationCampaigns = pgTable("donation_campaigns", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  // Null = tenant-wide campaign run by tenant finance roles; set = owned entirely by that
+  // group's own owner/admin, same autonomy split as group-scoped dues.
+  groupId: uuid("group_id").references(() => groups.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  // Null = open-ended giving with no goal; set = goal-based campaign with a progress bar.
+  targetAmount: numeric("target_amount", { precision: 12, scale: 2 }),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_donation_campaigns_lookup").on(table.tenantId, table.groupId, table.isActive),
+]);
+
+// --- 16c. donation_contributions ---
+export const donationContributions = pgTable("donation_contributions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => donationCampaigns.id, { onDelete: "cascade" }),
+  donorId: uuid("donor_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 50 }).default("PENDING_CONFIRMATION").notNull(), // PENDING_CONFIRMATION | CONFIRMED | REJECTED
+  receiptUrl: text("receipt_url").notNull(),
+  transactionDate: timestamp("transaction_date", { withTimezone: true }).notNull(),
+  adminNotes: text("admin_notes"),
+  reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_donation_contributions_lookup").on(table.campaignId, table.status),
+]);
+
 // --- 17. audit_logs (append-only, non-deletable by convention) ---
 export const auditLogs = pgTable("audit_logs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeartHandshake, ChevronRight } from "lucide-react";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { tenants, payments, dues } from "@/db/schema";
@@ -51,6 +52,18 @@ export default async function MemberDuesPage({
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-3">
       <h1 className="text-lg font-semibold text-neutral-900">Dues Hub</h1>
+
+      <Link
+        href={`/${tenantSlug}/donations`}
+        className="flex items-center gap-3 rounded-lg border border-neutral-100 bg-white p-4 shadow-sm hover:bg-neutral-50"
+      >
+        <HeartHandshake className="h-4 w-4 shrink-0 text-neutral-500" strokeWidth={1.75} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-neutral-900">Donations</p>
+          <p className="text-xs text-neutral-500">Support your association&apos;s ongoing projects</p>
+        </div>
+        <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" strokeWidth={1.75} />
+      </Link>
 
       {myDues.length === 0 ? (
         <div className="rounded-lg border border-neutral-100 bg-white p-6 text-center shadow-sm">
