@@ -247,6 +247,16 @@ export const liveReactions = pgTable("live_reactions", {
   index("idx_live_reactions_session").on(table.sessionId),
 ]);
 
+/** Presence heartbeats for live viewer counts (rows older than ~45s are ignored). */
+export const liveViewers = pgTable("live_viewers", {
+  sessionId: uuid("session_id").notNull().references(() => liveSessions.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("unique_live_session_viewer").on(table.sessionId, table.userId),
+  index("idx_live_viewers_session_seen").on(table.sessionId, table.lastSeenAt),
+]);
+
 // --- 13. announcements ---
 export const announcements = pgTable("announcements", {
   id: uuid("id").defaultRandom().primaryKey(),

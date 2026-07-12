@@ -19,6 +19,7 @@ type LiveSession = {
   likeCount: number;
   likedByMe: boolean;
   startedAt: string;
+  viewerCount?: number;
 };
 
 type LiveComment = {
@@ -55,6 +56,54 @@ function formatLiveStarted(iso: string) {
   }
 }
 
+/** Heartbeat presence while on a live session; returns live viewer count. */
+function useLivePresence(tenantSlug: string, sessionId: string | null | undefined, active: boolean) {
+  const [viewerCount, setViewerCount] = useState(0);
+
+  useEffect(() => {
+    if (!active || !sessionId) {
+      setViewerCount(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function beat() {
+      try {
+        const result = await fetchJson<{ viewerCount: number }>(
+          `/api/tenants/${tenantSlug}/live/${sessionId}/presence`,
+          { method: "POST" }
+        );
+        if (!cancelled) setViewerCount(result.viewerCount);
+      } catch {
+        // best-effort
+      }
+    }
+
+    void beat();
+    const timer = setInterval(beat, 12_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      void fetch(`/api/tenants/${tenantSlug}/live/${sessionId}/presence`, {
+        method: "DELETE",
+      }).catch(() => undefined);
+    };
+  }, [active, sessionId, tenantSlug]);
+
+  return viewerCount;
+}
+
+function ViewerCountBadge({ count }: { count: number }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-medium text-white">
+      <Users className="h-3.5 w-3.5" />
+      {count}
+    </span>
+  );
+}
+
 export function LiveHostPanel({
   tenantSlug,
   groupSlug,
@@ -75,6 +124,7 @@ export function LiveHostPanel({
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
+  const viewerCount = useLivePresence(tenantSlug, session?.id, Boolean(session));
 
   useEffect(() => {
     return () => {
@@ -176,9 +226,12 @@ export function LiveHostPanel({
           </div>
         )}
         {session && (
-          <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full bg-black/55 px-2.5 py-1">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-error-600" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Live</span>
+          <div className="absolute left-3 right-3 top-3 z-10 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 rounded-full bg-black/55 px-2.5 py-1">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-error-600" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Live</span>
+            </div>
+            <ViewerCountBadge count={viewerCount} />
           </div>
         )}
       </LiveStage>
@@ -258,6 +311,7 @@ export function LiveManagePanel({
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
+  const viewerCount = useLivePresence(tenantSlug, session.id, true);
 
   useEffect(() => {
     let cancelled = false;
@@ -331,9 +385,12 @@ export function LiveManagePanel({
             <p className="text-sm text-white/60">Loading preview...</p>
           </div>
         )}
-        <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full bg-black/55 px-2.5 py-1">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-error-600" />
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Live</span>
+        <div className="absolute left-3 right-3 top-3 z-10 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 rounded-full bg-black/55 px-2.5 py-1">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-error-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Live</span>
+          </div>
+          <ViewerCountBadge count={viewerCount} />
         </div>
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
           <p className="text-sm font-semibold text-white">{session.title}</p>
@@ -403,8 +460,33 @@ export function LiveWatchPanel({
   const [muted, setMuted] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
+  const [lobbyViewerCount, setLobbyViewerCount] = useState(0);
+  const viewerCount = useLivePresence(tenantSlug, session.id, joined);
 
   useSetLiveImmersive(joined);
+
+  // Lobby can see the count without joining the stream (read-only poll).
+  useEffect(() => {
+    if (joined) return;
+
+    let cancelled = false;
+    async function pull() {
+      try {
+        const result = await fetchJson<{ viewerCount: number }>(
+          `/api/tenants/${tenantSlug}/live/${session.id}/presence`
+        );
+        if (!cancelled) setLobbyViewerCount(result.viewerCount);
+      } catch {
+        // ignore
+      }
+    }
+    void pull();
+    const timer = setInterval(pull, 12_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [joined, tenantSlug, session.id]);
 
   useEffect(() => {
     if (!joined) return;
@@ -533,6 +615,7 @@ export function LiveWatchPanel({
               <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/80">
                 {scopeLabel}
               </span>
+              <ViewerCountBadge count={lobbyViewerCount} />
             </div>
 
             <div className="space-y-3">
@@ -603,6 +686,7 @@ export function LiveWatchPanel({
           <p className="truncate text-sm font-semibold text-white drop-shadow">{session.title}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          <ViewerCountBadge count={viewerCount} />
           <button
             type="button"
             onClick={toggleMute}
@@ -859,26 +943,72 @@ function LiveChatPanel({
     return (
       <>
         <div className="flex max-w-full flex-col gap-2">
-          <div
-            ref={listRef}
-            className="flex max-h-44 flex-col justify-end gap-1.5 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            {comments.slice(-12).map((comment) => (
-              <p key={comment.id} className="max-w-[90%] text-xs leading-snug text-white drop-shadow">
-                <span className="font-semibold">{comment.authorName}</span>{" "}
-                <span className="text-white/90">{comment.content}</span>
-              </p>
-            ))}
-          </div>
-
           {!composing && (
-            <button
-              type="button"
-              onClick={openComposer}
-              className="w-full rounded-full border border-white/25 bg-black/35 px-3.5 py-2.5 text-left text-sm text-white/55 backdrop-blur-sm"
+            <>
+              <div
+                ref={listRef}
+                className="relative flex h-48 max-w-[90%] flex-col justify-end overflow-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                style={{
+                  maskImage: "linear-gradient(to bottom, transparent 0%, black 28%, black 100%)",
+                  WebkitMaskImage:
+                    "linear-gradient(to bottom, transparent 0%, black 28%, black 100%)",
+                }}
+              >
+                <div className="flex flex-col justify-end gap-1.5">
+                  {comments.slice(-8).map((comment, index, list) => {
+                    // Newest at bottom; older rows fade as they rise.
+                    const age = list.length - 1 - index;
+                    const opacity = Math.max(0.2, 1 - age * 0.14);
+                    return (
+                      <p
+                        key={comment.id}
+                        className="text-xs leading-snug text-white drop-shadow transition-opacity duration-300"
+                        style={{ opacity }}
+                      >
+                        <span className="font-semibold">{comment.authorName}</span>{" "}
+                        <span className="text-white/90">{comment.content}</span>
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={openComposer}
+                className="w-full rounded-full border border-white/25 bg-black/35 px-3.5 py-2.5 text-left text-sm text-white/55 backdrop-blur-sm"
+              >
+                Type...
+              </button>
+            </>
+          )}
+          {composing && (
+            <div
+              ref={listRef}
+              className="relative flex h-28 max-w-[90%] flex-col justify-end overflow-hidden"
+              style={{
+                maskImage: "linear-gradient(to bottom, transparent 0%, black 35%, black 100%)",
+                WebkitMaskImage:
+                  "linear-gradient(to bottom, transparent 0%, black 35%, black 100%)",
+              }}
             >
-              Type...
-            </button>
+              <div className="flex flex-col justify-end gap-1.5">
+                {comments.slice(-5).map((comment, index, list) => {
+                  const age = list.length - 1 - index;
+                  const opacity = Math.max(0.25, 1 - age * 0.18);
+                  return (
+                    <p
+                      key={comment.id}
+                      className="text-xs leading-snug text-white drop-shadow"
+                      style={{ opacity }}
+                    >
+                      <span className="font-semibold">{comment.authorName}</span>{" "}
+                      <span className="text-white/90">{comment.content}</span>
+                    </p>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
         {composer}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { liveSessions } from "@/db/schema";
+import { liveSessions, liveViewers } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
 import { disableCloudflareLiveInput } from "@/lib/cloudflare-stream";
@@ -64,6 +64,12 @@ export async function POST(
       .set({ status: "ENDED", endedAt: new Date() })
       .where(eq(liveSessions.id, session.id))
       .returning();
+
+    try {
+      await db.delete(liveViewers).where(eq(liveViewers.sessionId, session.id));
+    } catch {
+      // ignore
+    }
 
     return NextResponse.json({ id: updated.id, status: updated.status });
   } catch (error) {
