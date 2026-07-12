@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, Radio, Send, Users } from "lucide-react";
@@ -666,7 +666,7 @@ function LiveChatPanel({
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [composing, setComposing] = useState(false);
-  const [composerBottom, setComposerBottom] = useState(0);
+  const [composerBox, setComposerBox] = useState({ bottom: 0, left: 0, width: 0 });
   const [portalReady, setPortalReady] = useState(false);
   const lastStampRef = useRef<string | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -733,36 +733,49 @@ function LiveChatPanel({
   }, [comments]);
 
   useEffect(() => {
-    if (!composing) {
-      setComposerBottom(0);
-      return;
-    }
+    if (!composing) return;
 
     const vv = window.visualViewport;
     const sync = () => {
+      // Pin the composer to the visible viewport so it never overflows/zooms off-screen.
       if (!vv) {
-        setComposerBottom(0);
+        setComposerBox({ bottom: 0, left: 0, width: window.innerWidth });
         return;
       }
-      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setComposerBottom(inset);
+      const bottom = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+      setComposerBox({
+        bottom,
+        left: vv.offsetLeft,
+        width: vv.width,
+      });
       window.scrollTo(0, 0);
     };
 
     sync();
     vv?.addEventListener("resize", sync);
     vv?.addEventListener("scroll", sync);
-
-    const focusTimer = window.setTimeout(() => {
-      overlayInputRef.current?.focus({ preventScroll: true });
-    }, 30);
-
     return () => {
-      window.clearTimeout(focusTimer);
       vv?.removeEventListener("resize", sync);
       vv?.removeEventListener("scroll", sync);
     };
   }, [composing]);
+
+  function openComposer() {
+    // Mount + focus in the same tap so iOS opens the keyboard immediately.
+    flushSync(() => {
+      setComposerBox({
+        bottom: 0,
+        left: window.visualViewport?.offsetLeft ?? 0,
+        width: window.visualViewport?.width ?? window.innerWidth,
+      });
+      setComposing(true);
+    });
+    overlayInputRef.current?.focus({ preventScroll: true });
+  }
+
+  function closeComposer() {
+    setComposing(false);
+  }
 
   async function handleSend(event: FormEvent) {
     event.preventDefault();
@@ -794,21 +807,27 @@ function LiveChatPanel({
     const composer =
       composing && portalReady
         ? createPortal(
-            <div className="pointer-events-none fixed inset-0 z-[80]">
+            <div className="pointer-events-none fixed inset-0 z-[80] overflow-hidden">
               <button
                 type="button"
                 aria-label="Close keyboard"
-                className="pointer-events-auto absolute inset-0 bg-black/20"
-                onClick={() => setComposing(false)}
+                className="pointer-events-auto absolute inset-0 bg-black/25"
+                onClick={closeComposer}
               />
               <div
-                className="pointer-events-auto absolute inset-x-0 border-t border-neutral-200 bg-white px-3 py-2 shadow-[0_-8px_24px_rgba(0,0,0,0.18)]"
+                className="pointer-events-auto fixed box-border border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.18)]"
                 style={{
-                  bottom: composerBottom,
-                  paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))",
+                  left: composerBox.left,
+                  width: composerBox.width || "100%",
+                  bottom: composerBox.bottom,
+                  maxWidth: "100vw",
                 }}
               >
-                <form onSubmit={handleSend} className="flex items-center gap-2">
+                <form
+                  onSubmit={handleSend}
+                  className="mx-auto flex w-full max-w-xl items-center gap-2 px-3 py-2"
+                  style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+                >
                   <input
                     ref={overlayInputRef}
                     value={draft}
@@ -816,13 +835,16 @@ function LiveChatPanel({
                     maxLength={280}
                     enterKeyHint="send"
                     autoComplete="off"
+                    autoCorrect="off"
                     placeholder="Type..."
-                    className="min-w-0 flex-1 rounded-full border border-neutral-200 bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-500 focus:border-neutral-300"
+                    // 16px prevents iOS page-zoom on focus (which hid the send button).
+                    className="min-w-0 flex-1 rounded-full border border-neutral-200 bg-neutral-100 px-3.5 py-2.5 text-neutral-900 outline-none placeholder:text-neutral-500 focus:border-neutral-300"
+                    style={{ fontSize: 16 }}
                   />
                   <button
                     type="submit"
                     disabled={submitting || !draft.trim()}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white disabled:opacity-40"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white disabled:opacity-40"
                     aria-label="Send comment"
                   >
                     <Send className="h-4 w-4" />
@@ -849,13 +871,15 @@ function LiveChatPanel({
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setComposing(true)}
-            className="w-full rounded-full border border-white/25 bg-black/35 px-3.5 py-2.5 text-left text-sm text-white/55 backdrop-blur-sm"
-          >
-            Type...
-          </button>
+          {!composing && (
+            <button
+              type="button"
+              onClick={openComposer}
+              className="w-full rounded-full border border-white/25 bg-black/35 px-3.5 py-2.5 text-left text-sm text-white/55 backdrop-blur-sm"
+            >
+              Type...
+            </button>
+          )}
         </div>
         {composer}
       </>
