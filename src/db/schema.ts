@@ -408,6 +408,10 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodStart: timestamp("current_period_start", { withTimezone: true }).defaultNow().notNull(),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }).notNull(),
   paystackReference: varchar("paystack_reference", { length: 255 }),
+  // Last initiated checkout — used to auto-finalize if Paystack's browser return URL is missed.
+  pendingPaystackReference: varchar("pending_paystack_reference", { length: 255 }),
+  pendingPlanName: varchar("pending_plan_name", { length: 100 }),
+  pendingBillingCycle: varchar("pending_billing_cycle", { length: 20 }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index("idx_subs_tenant").on(table.tenantId, table.status),

@@ -51,6 +51,9 @@ export async function applySubscriptionPayment({
       currentPeriodStart: now,
       currentPeriodEnd,
       paystackReference,
+      pendingPaystackReference: null,
+      pendingPlanName: null,
+      pendingBillingCycle: null,
       updatedAt: now,
     })
     .where(eq(subscriptions.tenantId, tenantId))

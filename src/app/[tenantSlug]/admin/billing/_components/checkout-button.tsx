@@ -22,10 +22,21 @@ export function CheckoutButton({
     setErrorMessage(null);
 
     try {
-      const { authorizationUrl } = await fetchJson<{ authorizationUrl: string }>(
-        `/api/tenants/${tenantSlug}/billing/checkout`,
-        { method: "POST", body: { planName, billingCycle } }
-      );
+      const { authorizationUrl, reference } = await fetchJson<{
+        authorizationUrl: string;
+        reference: string;
+      }>(`/api/tenants/${tenantSlug}/billing/checkout`, {
+        method: "POST",
+        body: { planName, billingCycle },
+      });
+
+      // Backup if Paystack return URL is missed — billing page can still finalize.
+      try {
+        sessionStorage.setItem(`paystack-pending:${tenantSlug}`, reference);
+      } catch {
+        // private browsing may block sessionStorage
+      }
+
       window.location.href = authorizationUrl;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Couldn't start checkout.");

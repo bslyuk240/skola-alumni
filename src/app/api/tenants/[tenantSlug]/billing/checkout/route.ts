@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
 import { initializePaystackTransaction } from "@/lib/paystack";
 import { resolveAppOrigin } from "@/lib/app-origin";
+import { savePendingCheckout } from "@/lib/finalize-pending-payment";
 import { handleApiError } from "@/lib/api-error";
 
 const checkoutSchema = z.object({
@@ -47,7 +48,7 @@ export async function POST(
     const amountKobo = Math.round(naira * 100);
 
     const origin = resolveAppOrigin(req);
-    const { authorization_url: authorizationUrl } = await initializePaystackTransaction({
+    const paystack = await initializePaystackTransaction({
       email: user.email,
       amountKobo,
       callbackUrl: `${origin}/${tenantSlug}/billing/callback`,
@@ -59,7 +60,17 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ authorizationUrl });
+    await savePendingCheckout({
+      tenantId: authorized.tenant.id,
+      reference: paystack.reference,
+      planName: plan.name,
+      billingCycle: body.billingCycle,
+    });
+
+    return NextResponse.json({
+      authorizationUrl: paystack.authorization_url,
+      reference: paystack.reference,
+    });
   } catch (error) {
     return handleApiError(error);
   }
