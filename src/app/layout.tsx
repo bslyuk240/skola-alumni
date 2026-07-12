@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
@@ -29,6 +29,14 @@ export const metadata: Metadata = {
   description:
     "The private database, dues collector, and structure your alumni association needs to run alongside WhatsApp.",
   manifest: "/manifest.webmanifest",
+};
+
+/** Overlay the keyboard instead of resizing/pushing the whole page (fixes live comment jump). */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "overlays-content",
 };
 
 export default function RootLayout({

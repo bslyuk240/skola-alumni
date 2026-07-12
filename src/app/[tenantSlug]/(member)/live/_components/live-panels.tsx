@@ -479,14 +479,14 @@ export function LiveWatchPanel({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <LiveStage>
+    <div className={`flex flex-col gap-3 ${joined ? "relative" : ""}`}>
+      <LiveStage className={joined ? "overflow-hidden" : ""}>
         <video
           ref={videoRef}
           playsInline
           autoPlay
           muted
-          className={`absolute inset-0 h-full w-full object-cover ${joined ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 h-full w-full bg-black object-cover ${joined ? "opacity-100" : "opacity-0"}`}
         />
 
         {!joined ? (
@@ -614,6 +614,7 @@ function LiveChatPanel({
   const seenIdsRef = useRef<Set<string>>(new Set());
   const sendingLockRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -663,6 +664,17 @@ function LiveChatPanel({
     el.scrollTop = el.scrollHeight;
   }, [comments]);
 
+  function focusComposerWithoutPageJump() {
+    const input = inputRef.current;
+    if (!input) return;
+    // Keep the live stage fixed — don't let mobile scroll the whole page up behind the keyboard.
+    input.focus({ preventScroll: true });
+    const y = window.scrollY;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: y, left: 0, behavior: "auto" });
+    });
+  }
+
   async function handleSend(event: FormEvent) {
     event.preventDefault();
     const content = draft.trim();
@@ -680,6 +692,8 @@ function LiveChatPanel({
       const stamp = toIsoStamp(created.createdAt);
       if (stamp) lastStampRef.current = stamp;
       setComments((prev) => mergeComments(prev, [created]));
+      // Keep focus for rapid chat without re-triggering a page scroll jump.
+      focusComposerWithoutPageJump();
     } catch {
       setDraft(content);
     } finally {
@@ -687,6 +701,50 @@ function LiveChatPanel({
       setSubmitting(false);
     }
   }
+
+  const composer = (
+    <form
+      onSubmit={handleSend}
+      className={overlay ? "flex gap-2" : "mt-3 flex gap-2"}
+      onFocusCapture={(event) => {
+        if (event.target instanceof HTMLInputElement) {
+          event.target.focus({ preventScroll: true });
+        }
+      }}
+    >
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => {
+          e.target.focus({ preventScroll: true });
+          const y = window.scrollY;
+          requestAnimationFrame(() => window.scrollTo(0, y));
+        }}
+        maxLength={280}
+        enterKeyHint="send"
+        autoComplete="off"
+        placeholder={overlay ? "Say something..." : "Add a comment"}
+        className={
+          overlay
+            ? "min-w-0 flex-1 rounded-full border border-white/20 bg-black/40 px-3 py-2 text-xs text-white placeholder:text-white/50 outline-none focus:border-white/40"
+            : "input flex-1 text-sm"
+        }
+      />
+      <button
+        type="submit"
+        disabled={submitting || !draft.trim()}
+        className={
+          overlay
+            ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-neutral-900 disabled:opacity-50"
+            : "rounded-md bg-primary-600 px-3 text-white disabled:opacity-50"
+        }
+        aria-label="Send comment"
+      >
+        <Send className={overlay ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      </button>
+    </form>
+  );
 
   if (overlay) {
     return (
@@ -702,23 +760,7 @@ function LiveChatPanel({
             </p>
           ))}
         </div>
-        <form onSubmit={handleSend} className="flex gap-2">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            maxLength={280}
-            placeholder="Say something..."
-            className="min-w-0 flex-1 rounded-full border border-white/20 bg-black/40 px-3 py-2 text-xs text-white placeholder:text-white/50 outline-none focus:border-white/40"
-          />
-          <button
-            type="submit"
-            disabled={submitting || !draft.trim()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-neutral-900 disabled:opacity-50"
-            aria-label="Send comment"
-          >
-            <Send className="h-3.5 w-3.5" />
-          </button>
-        </form>
+        {composer}
       </div>
     );
   }
@@ -741,23 +783,7 @@ function LiveChatPanel({
           ))
         )}
       </div>
-      <form onSubmit={handleSend} className="mt-3 flex gap-2">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          maxLength={280}
-          placeholder="Add a comment"
-          className="input flex-1 text-sm"
-        />
-        <button
-          type="submit"
-          disabled={submitting || !draft.trim()}
-          className="rounded-md bg-primary-600 px-3 text-white disabled:opacity-50"
-          aria-label="Send comment"
-        >
-          <Send className="h-4 w-4" />
-        </button>
-      </form>
+      {composer}
     </div>
   );
 }
