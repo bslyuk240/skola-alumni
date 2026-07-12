@@ -69,7 +69,7 @@ export async function GET(
       comments: rows.map((row) => ({
         id: row.id,
         content: row.content,
-        createdAt: row.createdAt,
+        createdAt: row.createdAt.toISOString(),
         authorName: `${row.firstName} ${row.lastName}`.trim(),
         userId: row.userId,
       })),
@@ -109,7 +109,7 @@ export async function POST(
       {
         id: comment.id,
         content: comment.content,
-        createdAt: comment.createdAt,
+        createdAt: comment.createdAt.toISOString(),
         authorName: profile ? `${profile.firstName} ${profile.lastName}`.trim() : "Member",
         userId: user.id,
       },

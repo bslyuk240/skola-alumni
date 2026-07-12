@@ -86,10 +86,13 @@ export class WhepPlayer {
     this.pc.addTransceiver("audio", { direction: "recvonly" });
 
     this.pc.ontrack = (event) => {
-      if (this.videoElement.srcObject !== event.streams[0]) {
-        this.videoElement.srcObject = event.streams[0];
-        void this.videoElement.play().catch(() => undefined);
+      const stream = event.streams[0] ?? new MediaStream([event.track]);
+      if (this.videoElement.srcObject !== stream) {
+        this.videoElement.srcObject = stream;
       }
+      // Browsers block unmuted autoplay; start muted then let the UI offer unmute.
+      this.videoElement.muted = true;
+      void this.videoElement.play().catch(() => undefined);
     };
 
     const offer = await this.pc.createOffer();

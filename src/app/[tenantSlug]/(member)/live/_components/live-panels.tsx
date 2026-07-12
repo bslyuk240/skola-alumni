@@ -368,6 +368,22 @@ export function LiveManagePanel({
   );
 }
 
+function toIsoStamp(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
+}
+
+function mergeComments(prev: LiveComment[], incoming: LiveComment[]): LiveComment[] {
+  const byId = new Map<string, LiveComment>();
+  for (const comment of prev) byId.set(comment.id, comment);
+  for (const comment of incoming) byId.set(comment.id, comment);
+  return Array.from(byId.values())
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .slice(-80);
+}
+
 export function LiveWatchPanel({
   tenantSlug,
   initialSession,
@@ -382,6 +398,7 @@ export function LiveWatchPanel({
   const [session, setSession] = useState(initialSession);
   const [joined, setJoined] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
 
@@ -391,13 +408,22 @@ export function LiveWatchPanel({
     let cancelled = false;
 
     async function connect() {
-      if (!videoRef.current) return;
+      // Wait one frame so the always-mounted video is painted after lobby → stream switch.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (cancelled || !videoRef.current) return;
+
       setJoining(true);
       setErrorMessage(null);
       try {
+        await playerRef.current?.stop();
         const player = new WhepPlayer(session.whepPlayUrl, videoRef.current);
         playerRef.current = player;
         await player.start();
+        if (videoRef.current) {
+          videoRef.current.muted = true;
+          setMuted(true);
+          await videoRef.current.play().catch(() => undefined);
+        }
       } catch (error) {
         if (!cancelled) {
           setErrorMessage(
@@ -438,16 +464,33 @@ export function LiveWatchPanel({
     void playerRef.current?.stop();
     playerRef.current = null;
     setJoined(false);
+    setJoining(false);
+    setMuted(true);
     setErrorMessage(null);
   }
 
-  // Lobby — stream info before joining video
-  if (!joined) {
-    return (
-      <div className="flex flex-col gap-4">
-        <LiveStage>
-          <div className="absolute inset-0 bg-gradient-to-b from-primary-900 via-neutral-950 to-neutral-950" />
-          <div className="absolute inset-0 flex flex-col justify-between p-5 text-white">
+  function toggleMute() {
+    const video = videoRef.current;
+    if (!video) return;
+    const next = !video.muted;
+    video.muted = next;
+    setMuted(next);
+    if (!next) void video.play().catch(() => undefined);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <LiveStage>
+        <video
+          ref={videoRef}
+          playsInline
+          autoPlay
+          muted
+          className={`absolute inset-0 h-full w-full object-cover ${joined ? "opacity-100" : "opacity-0"}`}
+        />
+
+        {!joined ? (
+          <div className="absolute inset-0 z-10 flex flex-col justify-between bg-gradient-to-b from-primary-900 via-neutral-950 to-neutral-950 p-5 text-white">
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1.5 rounded-full bg-error-600 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
@@ -483,74 +526,65 @@ export function LiveWatchPanel({
               </button>
             </div>
           </div>
-        </LiveStage>
-
-        {errorMessage && (
-          <div className="rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
-            {errorMessage}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // In-stream — fixed portrait stage with overlays
-  return (
-    <div className="flex flex-col gap-3">
-      <LiveStage>
-        <video
-          ref={videoRef}
-          playsInline
-          autoPlay
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-
-        {joining && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
-            <p className="text-sm font-medium text-white">Connecting...</p>
-          </div>
-        )}
-
-        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between bg-gradient-to-b from-black/45 via-transparent to-black/55 p-3">
-          <div className="pointer-events-auto flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="flex items-center gap-1.5 rounded-full bg-error-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-                  Live
-                </span>
+        ) : (
+          <>
+            {joining && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
+                <p className="text-sm font-medium text-white">Connecting...</p>
               </div>
-              <p className="truncate text-sm font-semibold text-white drop-shadow">{session.title}</p>
-              <p className="truncate text-[11px] text-white/70">{scopeLabel}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleLeave}
-              className="shrink-0 rounded-full bg-black/50 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-black/70"
-            >
-              Leave
-            </button>
-          </div>
+            )}
 
-          <div className="pointer-events-auto flex items-end gap-2">
-            <div className="min-w-0 flex-1">
-              <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} overlay />
+            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between bg-gradient-to-b from-black/45 via-transparent to-black/55 p-3">
+              <div className="pointer-events-auto flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 rounded-full bg-error-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                      Live
+                    </span>
+                  </div>
+                  <p className="truncate text-sm font-semibold text-white drop-shadow">{session.title}</p>
+                  <p className="truncate text-[11px] text-white/70">{scopeLabel}</p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleLeave}
+                    className="rounded-full bg-black/50 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-black/70"
+                  >
+                    Leave
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    className="rounded-full bg-black/50 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-black/70"
+                  >
+                    {muted ? "Unmute" : "Mute"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pointer-events-auto flex items-end gap-2">
+                <div className="min-w-0 flex-1">
+                  <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} overlay />
+                </div>
+                <button
+                  type="button"
+                  disabled={liking}
+                  onClick={toggleLike}
+                  className="mb-1 flex flex-col items-center gap-1 rounded-full px-1 py-1 text-white"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45">
+                    <Heart
+                      className={`h-5 w-5 ${session.likedByMe ? "fill-error-600 text-error-600" : ""}`}
+                    />
+                  </span>
+                  <span className="text-[11px] font-medium drop-shadow">{session.likeCount}</span>
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              disabled={liking}
-              onClick={toggleLike}
-              className="mb-1 flex flex-col items-center gap-1 rounded-full px-1 py-1 text-white"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45">
-                <Heart
-                  className={`h-5 w-5 ${session.likedByMe ? "fill-error-600 text-error-600" : ""}`}
-                />
-              </span>
-              <span className="text-[11px] font-medium drop-shadow">{session.likeCount}</span>
-            </button>
-          </div>
-        </div>
+          </>
+        )}
       </LiveStage>
 
       {errorMessage && (
@@ -577,12 +611,20 @@ function LiveChatPanel({
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const lastStampRef = useRef<string | null>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const sendingLockRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
+    seenIdsRef.current = new Set();
+    lastStampRef.current = null;
+    setComments([]);
 
     async function pull() {
+      if (inFlight || cancelled) return;
+      inFlight = true;
       try {
         const query = lastStampRef.current
           ? `?after=${encodeURIComponent(lastStampRef.current)}`
@@ -592,19 +634,23 @@ function LiveChatPanel({
         );
         if (cancelled || result.comments.length === 0) return;
 
-        setComments((prev) => {
-          const merged = lastStampRef.current ? [...prev, ...result.comments] : result.comments;
-          return merged.slice(-80);
-        });
-        lastStampRef.current =
-          result.comments[result.comments.length - 1]?.createdAt ?? lastStampRef.current;
+        const fresh = result.comments.filter((comment) => !seenIdsRef.current.has(comment.id));
+        for (const comment of result.comments) seenIdsRef.current.add(comment.id);
+
+        const newestStamp = toIsoStamp(result.comments[result.comments.length - 1]?.createdAt);
+        if (newestStamp) lastStampRef.current = newestStamp;
+
+        if (fresh.length === 0) return;
+        setComments((prev) => mergeComments(prev, fresh));
       } catch {
         // polling is best-effort
+      } finally {
+        inFlight = false;
       }
     }
 
     void pull();
-    const timer = setInterval(pull, 1500);
+    const timer = setInterval(pull, 2000);
     return () => {
       cancelled = true;
       clearInterval(timer);
@@ -619,17 +665,25 @@ function LiveChatPanel({
 
   async function handleSend(event: FormEvent) {
     event.preventDefault();
-    if (!draft.trim()) return;
+    const content = draft.trim();
+    if (!content || sendingLockRef.current) return;
+
+    sendingLockRef.current = true;
     setSubmitting(true);
+    setDraft("");
     try {
       const created = await fetchJson<LiveComment>(
         `/api/tenants/${tenantSlug}/live/${sessionId}/comments`,
-        { method: "POST", body: { content: draft.trim() } }
+        { method: "POST", body: { content } }
       );
-      setComments((prev) => [...prev, created].slice(-80));
-      lastStampRef.current = created.createdAt;
-      setDraft("");
+      seenIdsRef.current.add(created.id);
+      const stamp = toIsoStamp(created.createdAt);
+      if (stamp) lastStampRef.current = stamp;
+      setComments((prev) => mergeComments(prev, [created]));
+    } catch {
+      setDraft(content);
     } finally {
+      sendingLockRef.current = false;
       setSubmitting(false);
     }
   }
