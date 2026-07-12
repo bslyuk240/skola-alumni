@@ -106,6 +106,7 @@ export default async function GroupLivePage({
       <h1 className="text-lg font-semibold text-neutral-900">{resolved.group.name} Live</h1>
       <LiveWatchPanel
         tenantSlug={tenantSlug}
+        scopeLabel={resolved.group.name}
         initialSession={{
           ...publicLiveSessionPayload(session, { groupSlug, likeCount, likedByMe }),
           startedAt: session.startedAt.toISOString(),

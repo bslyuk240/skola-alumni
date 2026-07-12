@@ -92,6 +92,7 @@ export default async function TenantLivePage({
       </div>
       <LiveWatchPanel
         tenantSlug={tenantSlug}
+        scopeLabel={membership.tenant.name}
         initialSession={{
           ...publicLiveSessionPayload(session, { groupSlug, likeCount, likedByMe }),
           startedAt: session.startedAt.toISOString(),
