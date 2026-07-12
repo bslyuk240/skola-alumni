@@ -205,6 +205,48 @@ export const postReports = pgTable("post_reports", {
   unique("unique_user_post_report").on(table.postId, table.reporterId),
 ]);
 
+// --- 12c. live streaming (TikTok-style; one LIVE session per tenant at a time) ---
+export const liveSessions = pgTable("live_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  // null = school-wide live; set = group-scoped (class set / chapter / committee)
+  groupId: uuid("group_id").references(() => groups.id, { onDelete: "cascade" }),
+  hostUserId: uuid("host_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("LIVE"), // LIVE | ENDED
+  cfLiveInputId: varchar("cf_live_input_id", { length: 64 }).notNull(),
+  // Host publish URL — never return to non-hosts
+  whipPublishUrl: text("whip_publish_url").notNull(),
+  whepPlayUrl: text("whep_play_url").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_live_sessions_tenant_status").on(table.tenantId, table.status),
+  index("idx_live_sessions_group").on(table.groupId),
+]);
+
+export const liveComments = pgTable("live_comments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionId: uuid("session_id").notNull().references(() => liveSessions.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content: varchar("content", { length: 280 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_live_comments_session_created").on(table.sessionId, table.createdAt),
+]);
+
+export const liveReactions = pgTable("live_reactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionId: uuid("session_id").notNull().references(() => liveSessions.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 50 }).notNull().default("LIKE"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("unique_live_session_user_reaction").on(table.sessionId, table.userId, table.type),
+  index("idx_live_reactions_session").on(table.sessionId),
+]);
+
 // --- 13. announcements ---
 export const announcements = pgTable("announcements", {
   id: uuid("id").defaultRandom().primaryKey(),

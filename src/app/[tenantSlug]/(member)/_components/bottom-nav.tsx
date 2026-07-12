@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Wallet, Users, Search, UserRound } from "lucide-react";
+import { Home, Wallet, Users, Search, UserRound, Radio } from "lucide-react";
 
 export function BottomNav({ tenantSlug }: { tenantSlug: string }) {
   const pathname = usePathname();
 
   const items = [
     { href: `/${tenantSlug}/home`, label: "Feed", Icon: Home },
+    { href: `/${tenantSlug}/live`, label: "Live", Icon: Radio },
     { href: `/${tenantSlug}/dues`, label: "Dues", Icon: Wallet },
     { href: `/${tenantSlug}/groups`, label: "Groups", Icon: Users },
-    { href: `/${tenantSlug}/directory`, label: "Directory", Icon: Search },
     { href: `/${tenantSlug}/profile/me`, label: "Profile", Icon: UserRound },
   ];
 
@@ -19,7 +19,7 @@ export function BottomNav({ tenantSlug }: { tenantSlug: string }) {
     <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-neutral-100 bg-white">
       <div className="mx-auto flex w-full max-w-xl">
         {items.map(({ href, label, Icon }) => {
-          const isActive = pathname === href;
+          const isActive = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
               key={href}

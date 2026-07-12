@@ -74,6 +74,13 @@ export const getCloudinaryEnv = makeLazyEnv("Cloudinary", {
   CLOUDINARY_SECRET: z.string().min(1),
 });
 
+// Lazy: only required when live-stream APIs run — empty values won't break the rest of the app.
+export const getCloudflareStreamEnv = makeLazyEnv("Cloudflare Stream", {
+  CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
+  CLOUDFLARE_STREAM_API_TOKEN: z.string().min(1),
+  CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().min(1),
+});
+
 export const getResendEnv = makeLazyEnv("Resend", {
   RESEND_API_KEY: z.string().min(1),
 });

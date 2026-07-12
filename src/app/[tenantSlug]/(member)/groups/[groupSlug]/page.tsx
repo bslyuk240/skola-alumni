@@ -72,6 +72,14 @@ export default async function GroupDetailPage({
 
       {isApprovedMember ? (
         <>
+          <div className="flex gap-2">
+            <Link
+              href={`/${tenantSlug}/groups/${groupSlug}/live`}
+              className="flex-1 rounded-md border border-neutral-200 bg-white px-3 py-2 text-center text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+            >
+              Live
+            </Link>
+          </div>
           <PostComposer tenantSlug={tenantSlug} groupSlug={groupSlug} />
 
           {groupPosts.length === 0 ? (
