@@ -31,7 +31,15 @@ export async function initializePaystackTransaction({
       email,
       amount: amountKobo,
       callback_url: callbackUrl,
-      metadata,
+      // Flat keys + custom_fields so verify/webhook reliably return plan/tenant details.
+      metadata: {
+        ...metadata,
+        custom_fields: Object.entries(metadata).map(([key, value]) => ({
+          display_name: key,
+          variable_name: key,
+          value: String(value),
+        })),
+      },
     }),
   });
 
