@@ -83,6 +83,19 @@ export const tenantMemberships = pgTable("tenant_memberships", {
   index("idx_t_memberships_tenant_status").on(table.tenantId, table.status),
 ]);
 
+// --- 4b. tenant_invites (private WhatsApp-shareable join links; schools stay undiscoverable) ---
+export const tenantInvites = pgTable("tenant_invites", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+}, (table) => [
+  index("idx_tenant_invites_tenant_active").on(table.tenantId, table.isActive),
+]);
+
 // --- 5. system_roles ---
 export const systemRoles = pgTable("system_roles", {
   id: uuid("id").defaultRandom().primaryKey(),

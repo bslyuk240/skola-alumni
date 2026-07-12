@@ -68,12 +68,10 @@ export default async function SelectWorkspacePage() {
             >
               Register a New Alumni Space
             </Link>
-            <Link
-              href="/explore-schools"
-              className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
-            >
-              Join Your School Alumni Space
-            </Link>
+            <p className="text-xs text-neutral-500">
+              To join an existing school, open the invite link your association shared (usually on
+              WhatsApp).
+            </p>
           </div>
         </div>
       ) : (

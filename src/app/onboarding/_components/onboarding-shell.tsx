@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-const STEP_LABELS = ["Identity", "Bank Details", "Plan"];
+const STEP_LABELS = ["Identity", "Bank Details", "Plan", "Invite"];
 
 export function OnboardingShell({
   step,
@@ -11,7 +11,7 @@ export function OnboardingShell({
   subtitle,
   children,
 }: {
-  step: 1 | 2 | 3;
+  step: 1 | 2 | 3 | 4;
   eyebrow: string;
   title: string;
   subtitle: string;
@@ -23,7 +23,7 @@ export function OnboardingShell({
         <div className="flex flex-col gap-2 px-6 pb-8 pt-6 text-white">
           <div className="flex items-center gap-2">
             {STEP_LABELS.map((label, index) => {
-              const stepNumber = (index + 1) as 1 | 2 | 3;
+              const stepNumber = (index + 1) as 1 | 2 | 3 | 4;
               const isActive = stepNumber === step;
               const isDone = stepNumber < step;
               return (

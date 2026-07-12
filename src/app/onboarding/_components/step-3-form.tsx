@@ -41,7 +41,7 @@ export function Step3Form({
           body: { planName: selectedPlan },
         });
       }
-      router.push(`/${tenantSlug}/admin`);
+      router.push(`/onboarding/invite?tenant=${tenantSlug}`);
     } catch {
       setErrorMessage("Couldn't save your plan selection. Please try again.");
       setSubmitting(false);

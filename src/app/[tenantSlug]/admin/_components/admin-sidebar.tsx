@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import {
+  Link2,
   LayoutDashboard,
   Users,
   Contact,
@@ -104,6 +105,7 @@ export function AdminSidebar({
 
   const navItems: NavItem[] = [
     { href: `/${tenantSlug}/admin`, label: "Overview", Icon: LayoutDashboard },
+    { href: `/${tenantSlug}/admin/invite`, label: "Invite Link", Icon: Link2 },
     { href: `/${tenantSlug}/admin/roster`, label: "Members", Icon: Contact },
     { href: `/${tenantSlug}/admin/members`, label: "Member Verification", Icon: UserCheck },
     { href: `/${tenantSlug}/admin/management`, label: "Groups Management", Icon: Users },

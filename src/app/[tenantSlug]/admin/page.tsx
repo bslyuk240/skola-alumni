@@ -2,6 +2,10 @@ import Link from "next/link";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { tenants, tenantMemberships, dues, payments, subscriptions } from "@/db/schema";
+import { getOrCreateActiveInvite, inviteUrl } from "@/lib/invites";
+import { InviteLinkCard } from "@/components/invite-link-card";
+import { getCurrentUser } from "@/lib/auth";
+import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
@@ -66,6 +70,17 @@ export default async function TenantAdminOverviewPage({
   const setupIncomplete = !tenant.logoUrl || !tenant.bankDetails;
   const metrics = await getWorkspaceMetrics(tenant.id);
 
+  const user = await getCurrentUser();
+  const canManageInvite =
+    user &&
+    (await getAuthorizedTenantMembership(user.id, tenantSlug, [
+      "President/School Owner",
+      "Secretary",
+    ]));
+  const invite = canManageInvite
+    ? await getOrCreateActiveInvite(tenant.id, user!.id)
+    : null;
+
   return (
     <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">
       <h1 className="text-xl font-semibold text-neutral-900">Workspace Overview</h1>
@@ -79,6 +94,12 @@ export default async function TenantAdminOverviewPage({
           >
             Finish setup
           </Link>
+        </div>
+      )}
+
+      {invite && (
+        <div className="mt-4">
+          <InviteLinkCard initialUrl={inviteUrl(invite.token)} tenantSlug={tenantSlug} />
         </div>
       )}
 

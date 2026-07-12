@@ -1,12 +1,14 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// Public routes: landing, auth pages, explore directory, and inbound webhooks
+// Public routes: landing, auth, invite redeem lookup, and inbound webhooks
 // (webhooks authenticate via signature verification, not Clerk sessions).
 const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/invite(.*)",
   "/explore-schools(.*)",
+  "/api/invites(.*)",
   "/api/webhooks(.*)",
 ]);
 

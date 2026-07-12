@@ -9,10 +9,12 @@ import {
   systemRoles,
   subscriptions,
   subscriptionPlans,
+  tenantInvites,
 } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { handleApiError } from "@/lib/api-error";
+import { generateInviteToken, inviteUrl } from "@/lib/invites";
 
 const onboardTenantSchema = z.object({
   name: z.string().min(2).max(255),
@@ -85,11 +87,27 @@ export async function POST(req: NextRequest) {
         currentPeriodEnd: trialEnd,
       });
 
-      return tenant;
+      const [invite] = await tx
+        .insert(tenantInvites)
+        .values({
+          tenantId: tenant.id,
+          token: generateInviteToken(),
+          createdBy: user.id,
+          isActive: true,
+        })
+        .returning();
+
+      return { tenant, invite };
     });
 
     return NextResponse.json(
-      { id: result.id, slug: result.slug, status: "TRIALING" },
+      {
+        id: result.tenant.id,
+        slug: result.tenant.slug,
+        status: "TRIALING",
+        inviteToken: result.invite.token,
+        inviteUrl: inviteUrl(result.invite.token),
+      },
       { status: 201 }
     );
   } catch (error) {

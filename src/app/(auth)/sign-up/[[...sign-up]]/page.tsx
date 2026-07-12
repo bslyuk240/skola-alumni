@@ -116,12 +116,15 @@ export default function SignUpPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const intent: Intent = searchParams.get("type") === "member" ? "member" : "tenant";
-  const schoolSlug = searchParams.get("school");
+  const inviteToken = searchParams.get("invite");
   const [signingOut, setSigningOut] = useState(false);
 
   const [step, setStep] = useState<"form" | "verify">("form");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [inviteSchoolName, setInviteSchoolName] = useState<string | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(intent === "member");
+  const [inviteInvalid, setInviteInvalid] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -136,7 +139,35 @@ export default function SignUpPage() {
   const { secondsLeft, start } = useResendCooldown();
 
   const slug = slugOverride ?? slugify(schoolName);
-  const missingSchoolSelection = intent === "member" && !schoolSlug;
+  const missingInvite = intent === "member" && !inviteToken;
+
+  useEffect(() => {
+    if (intent !== "member" || !inviteToken) {
+      setInviteLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetch(`/api/invites/${inviteToken}`);
+        if (!data.ok) {
+          if (!cancelled) setInviteInvalid(true);
+          return;
+        }
+        const payload = (await data.json()) as { tenantName: string };
+        if (!cancelled) setInviteSchoolName(payload.tenantName);
+      } catch {
+        if (!cancelled) setInviteInvalid(true);
+      } finally {
+        if (!cancelled) setInviteLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [intent, inviteToken]);
 
   function setOtpDigit(index: number, rawValue: string) {
     const digit = rawValue.replace(/\D/g, "").slice(-1);
@@ -212,27 +243,63 @@ export default function SignUpPage() {
       if (intent === "tenant") {
         const tenant = await postJson<{ slug: string }>("/api/tenants", { name: schoolName, slug });
         router.push(`/onboarding/step-1?tenant=${tenant.slug}`);
-      } else if (schoolSlug) {
-        await postJson(`/api/tenants/${schoolSlug}/join`, {});
-        router.push(`/${schoolSlug}/home`);
+      } else if (inviteToken) {
+        const joined = await postJson<{ tenantSlug: string }>(`/api/invites/${inviteToken}/redeem`, {});
+        router.push(`/${joined.tenantSlug}/home`);
       }
     } catch (error) {
       setErrorMessage(
         isClerkAPIResponseError(error) && error.errors[0]
           ? error.errors[0].longMessage ?? error.errors[0].message
-          : "Something went wrong. Please try again."
+          : error instanceof Error
+            ? error.message
+            : "Something went wrong. Please try again."
       );
     } finally {
       setSubmitting(false);
     }
   }
 
-  const title = useMemo(
-    () => (intent === "tenant" ? "Register your association" : "Request to join"),
-    [intent]
-  );
+  const title = useMemo(() => {
+    if (intent === "tenant") return "Register your association";
+    if (inviteSchoolName) return `Join ${inviteSchoolName}`;
+    return "Join your association";
+  }, [intent, inviteSchoolName]);
 
   if (authLoaded && isSignedIn) {
+    if (intent === "member" && inviteToken) {
+      return (
+        <AuthShell
+          eyebrow="Join Association"
+          title="You're already signed in"
+          subtitle="Continue with this account to join via the invite link."
+        >
+          <div className="flex flex-col gap-3">
+            <Link
+              href={`/invite/${inviteToken}`}
+              className="animate-rise inline-flex items-center justify-center rounded-md bg-primary-600 px-4 py-3.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+              style={{ "--rise-index": 0 } as React.CSSProperties}
+            >
+              Continue to join
+            </Link>
+            <button
+              type="button"
+              disabled={signingOut}
+              onClick={async () => {
+                setSigningOut(true);
+                await signOut();
+                setSigningOut(false);
+              }}
+              className="animate-rise rounded-md border border-neutral-300 px-4 py-3.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-500"
+              style={{ "--rise-index": 1 } as React.CSSProperties}
+            >
+              {signingOut ? "Signing out..." : "Sign out and create a new account"}
+            </button>
+          </div>
+        </AuthShell>
+      );
+    }
+
     return (
       <AuthShell
         eyebrow={intent === "tenant" ? "New Association" : "Join Association"}
@@ -266,20 +333,32 @@ export default function SignUpPage() {
     );
   }
 
-  if (missingSchoolSelection) {
+  if (missingInvite || inviteInvalid) {
     return (
       <AuthShell
         eyebrow="Join Association"
-        title="Choose a school first"
-        subtitle="Browse the directory and select an association to request access."
+        title="Invite required"
+        subtitle="Alumni spaces are private. Open the invite link your association shared to create your account and join."
       >
         <Link
-          href="/explore-schools"
+          href="/sign-in"
           className="animate-rise mt-2 inline-flex items-center justify-center rounded-md bg-primary-600 px-4 py-3 text-sm font-medium text-white hover:bg-primary-700"
           style={{ "--rise-index": 0 } as React.CSSProperties}
         >
-          Browse Schools
+          Sign in instead
         </Link>
+      </AuthShell>
+    );
+  }
+
+  if (inviteLoading) {
+    return (
+      <AuthShell
+        eyebrow="Join Association"
+        title="Checking invite..."
+        subtitle="One moment while we verify your invite link."
+      >
+        <p className="text-sm text-neutral-500">Loading...</p>
       </AuthShell>
     );
   }
@@ -347,7 +426,7 @@ export default function SignUpPage() {
       subtitle={
         intent === "tenant"
           ? "Set up your school's private workspace in minutes."
-          : "Tell us a bit about yourself to request access."
+          : "Set your login credentials to join. Next time, sign in normally."
       }
     >
       {errorMessage && <ErrorBanner>{errorMessage}</ErrorBanner>}
@@ -421,7 +500,11 @@ export default function SignUpPage() {
           className="animate-rise mt-2 rounded-md bg-primary-600 px-4 py-3.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
           style={{ "--rise-index": 6 } as React.CSSProperties}
         >
-          {submitting ? "Creating account..." : intent === "tenant" ? "Register Association" : "Request to Join Association"}
+          {submitting
+            ? "Creating account..."
+            : intent === "tenant"
+              ? "Register Association"
+              : "Create Account & Join"}
         </button>
 
         <p className="text-center text-xs text-neutral-500">

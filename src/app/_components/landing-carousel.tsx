@@ -111,7 +111,8 @@ export function LandingCarousel() {
             </div>
             <h1 className="mt-8 text-2xl font-bold leading-tight">Ready to get started?</h1>
             <p className="mt-3 text-sm text-white/70">
-              Register your association, or join one that&rsquo;s already on Skola Alumni.
+              Register your association and invite members with a private link — schools stay
+              undiscoverable.
             </p>
 
             <div className="mt-6 flex w-full flex-col gap-3">
@@ -122,14 +123,14 @@ export function LandingCarousel() {
                 Register Your Alumni Association
               </Link>
               <Link
-                href="/explore-schools"
+                href="/sign-in"
                 className="rounded-md border border-white/30 px-6 py-3 text-sm font-medium hover:bg-white/10 transition-colors"
               >
-                Join Your School Alumni Space
+                Sign in to your school
               </Link>
-              <Link href="/sign-in" className="mt-1 text-sm font-medium text-white/70 hover:text-white">
-                Already have an account? Sign in
-              </Link>
+              <p className="mt-1 text-xs text-white/50">
+                Have an invite link? Open it to create your account and join.
+              </p>
             </div>
           </div>
         </div>
