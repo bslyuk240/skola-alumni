@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, Radio, Send, Users } from "lucide-react";
@@ -402,7 +403,6 @@ export function LiveWatchPanel({
   const [muted, setMuted] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
-  const [keyboardInset, setKeyboardInset] = useState(0);
 
   useSetLiveImmersive(joined);
 
@@ -448,36 +448,35 @@ export function LiveWatchPanel({
     };
   }, [joined, session.whepPlayUrl]);
 
-  // Dock the composer above the iOS/Android keyboard (visualViewport).
-  useEffect(() => {
-    if (!joined) {
-      setKeyboardInset(0);
-      return;
-    }
-
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const sync = () => {
-      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKeyboardInset(inset);
-    };
-
-    sync();
-    vv.addEventListener("resize", sync);
-    vv.addEventListener("scroll", sync);
-    return () => {
-      vv.removeEventListener("resize", sync);
-      vv.removeEventListener("scroll", sync);
-    };
-  }, [joined]);
-
   useEffect(() => {
     if (!joined) return;
-    const previous = document.body.style.overflow;
+    const previousOverflow = document.body.style.overflow;
+    const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousWidth = document.body.style.width;
+    const scrollY = window.scrollY;
+
+    // Hard-lock the page so iOS keyboard cannot shove the live stage up.
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
+    const vv = window.visualViewport;
+    const keepPinned = () => {
+      window.scrollTo(0, 0);
+    };
+    vv?.addEventListener("scroll", keepPinned);
+    vv?.addEventListener("resize", keepPinned);
+
     return () => {
-      document.body.style.overflow = previous;
+      document.body.style.overflow = previousOverflow;
+      document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.width = previousWidth;
+      window.scrollTo(0, scrollY);
+      vv?.removeEventListener("scroll", keepPinned);
+      vv?.removeEventListener("resize", keepPinned);
     };
   }, [joined]);
 
@@ -502,7 +501,6 @@ export function LiveWatchPanel({
     setJoined(false);
     setJoining(false);
     setMuted(true);
-    setKeyboardInset(0);
     setErrorMessage(null);
   }
 
@@ -515,7 +513,6 @@ export function LiveWatchPanel({
     if (!next) void video.play().catch(() => undefined);
   }
 
-  // Lobby — stream info before joining
   if (!joined) {
     return (
       <div className="flex flex-col gap-3 px-4 py-4">
@@ -574,9 +571,8 @@ export function LiveWatchPanel({
     );
   }
 
-  // TikTok-style fullscreen watch — edge-to-edge video, chat + composer pinned to bottom.
   return (
-    <div className="fixed inset-0 z-50 bg-black">
+    <div className="fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden bg-black">
       <video
         ref={videoRef}
         playsInline
@@ -593,7 +589,6 @@ export function LiveWatchPanel({
         </div>
       )}
 
-      {/* Top chrome */}
       <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-3 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-2">
@@ -626,14 +621,7 @@ export function LiveWatchPanel({
         </div>
       </div>
 
-      {/* Bottom: comments + composer + like — lifts with keyboard */}
-      <div
-        className="absolute inset-x-0 bottom-0 z-20 px-3"
-        style={{
-          paddingBottom: `calc(${keyboardInset}px + max(0.75rem, env(safe-area-inset-bottom)))`,
-          transition: "padding-bottom 120ms linear",
-        }}
-      >
+      <div className="absolute inset-x-0 bottom-0 z-20 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
             <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} overlay />
@@ -677,12 +665,19 @@ function LiveChatPanel({
   const [comments, setComments] = useState<LiveComment[]>([]);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [focused, setFocused] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [composerBottom, setComposerBottom] = useState(0);
+  const [portalReady, setPortalReady] = useState(false);
   const lastStampRef = useRef<string | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const sendingLockRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const overlayInputRef = useRef<HTMLInputElement>(null);
+  const compactInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -713,7 +708,6 @@ function LiveChatPanel({
         if (fresh.length === 0) return;
         setComments((prev) => mergeComments(prev, fresh));
       } catch (error) {
-        // Session ended / gone — stop hammering the API.
         const message = error instanceof Error ? error.message : "";
         if (/not found|ended|Access Denied/i.test(message)) {
           cancelled = true;
@@ -738,9 +732,37 @@ function LiveChatPanel({
     el.scrollTop = el.scrollHeight;
   }, [comments]);
 
-  function refocusComposer() {
-    inputRef.current?.focus({ preventScroll: true });
-  }
+  useEffect(() => {
+    if (!composing) {
+      setComposerBottom(0);
+      return;
+    }
+
+    const vv = window.visualViewport;
+    const sync = () => {
+      if (!vv) {
+        setComposerBottom(0);
+        return;
+      }
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setComposerBottom(inset);
+      window.scrollTo(0, 0);
+    };
+
+    sync();
+    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("scroll", sync);
+
+    const focusTimer = window.setTimeout(() => {
+      overlayInputRef.current?.focus({ preventScroll: true });
+    }, 30);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      vv?.removeEventListener("resize", sync);
+      vv?.removeEventListener("scroll", sync);
+    };
+  }, [composing]);
 
   async function handleSend(event: FormEvent) {
     event.preventDefault();
@@ -759,7 +781,7 @@ function LiveChatPanel({
       const stamp = toIsoStamp(created.createdAt);
       if (stamp) lastStampRef.current = stamp;
       setComments((prev) => mergeComments(prev, [created]));
-      refocusComposer();
+      overlayInputRef.current?.focus({ preventScroll: true });
     } catch {
       setDraft(content);
     } finally {
@@ -769,44 +791,74 @@ function LiveChatPanel({
   }
 
   if (overlay) {
+    const composer =
+      composing && portalReady
+        ? createPortal(
+            <div className="pointer-events-none fixed inset-0 z-[80]">
+              <button
+                type="button"
+                aria-label="Close keyboard"
+                className="pointer-events-auto absolute inset-0 bg-black/20"
+                onClick={() => setComposing(false)}
+              />
+              <div
+                className="pointer-events-auto absolute inset-x-0 border-t border-neutral-200 bg-white px-3 py-2 shadow-[0_-8px_24px_rgba(0,0,0,0.18)]"
+                style={{
+                  bottom: composerBottom,
+                  paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))",
+                }}
+              >
+                <form onSubmit={handleSend} className="flex items-center gap-2">
+                  <input
+                    ref={overlayInputRef}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    maxLength={280}
+                    enterKeyHint="send"
+                    autoComplete="off"
+                    placeholder="Type..."
+                    className="min-w-0 flex-1 rounded-full border border-neutral-200 bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-500 focus:border-neutral-300"
+                  />
+                  <button
+                    type="submit"
+                    disabled={submitting || !draft.trim()}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white disabled:opacity-40"
+                    aria-label="Send comment"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </form>
+              </div>
+            </div>,
+            document.body
+          )
+        : null;
+
     return (
-      <div className="flex max-w-full flex-col gap-2">
-        <div
-          ref={listRef}
-          className={`flex flex-col justify-end gap-1.5 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-            focused ? "max-h-28" : "max-h-44"
-          }`}
-        >
-          {comments.slice(-12).map((comment) => (
-            <p key={comment.id} className="max-w-[90%] text-xs leading-snug text-white drop-shadow">
-              <span className="font-semibold">{comment.authorName}</span>{" "}
-              <span className="text-white/90">{comment.content}</span>
-            </p>
-          ))}
-        </div>
-        <form onSubmit={handleSend} className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            maxLength={280}
-            enterKeyHint="send"
-            autoComplete="off"
-            placeholder="Type..."
-            className="min-w-0 flex-1 rounded-full border border-white/25 bg-black/45 px-3.5 py-2.5 text-sm text-white placeholder:text-white/55 outline-none focus:border-white/45"
-          />
-          <button
-            type="submit"
-            disabled={submitting || !draft.trim()}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-neutral-900 disabled:opacity-50"
-            aria-label="Send comment"
+      <>
+        <div className="flex max-w-full flex-col gap-2">
+          <div
+            ref={listRef}
+            className="flex max-h-44 flex-col justify-end gap-1.5 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            <Send className="h-4 w-4" />
+            {comments.slice(-12).map((comment) => (
+              <p key={comment.id} className="max-w-[90%] text-xs leading-snug text-white drop-shadow">
+                <span className="font-semibold">{comment.authorName}</span>{" "}
+                <span className="text-white/90">{comment.content}</span>
+              </p>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setComposing(true)}
+            className="w-full rounded-full border border-white/25 bg-black/35 px-3.5 py-2.5 text-left text-sm text-white/55 backdrop-blur-sm"
+          >
+            Type...
           </button>
-        </form>
-      </div>
+        </div>
+        {composer}
+      </>
     );
   }
 
@@ -830,7 +882,7 @@ function LiveChatPanel({
       </div>
       <form onSubmit={handleSend} className="mt-3 flex gap-2">
         <input
-          ref={inputRef}
+          ref={compactInputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           maxLength={280}
