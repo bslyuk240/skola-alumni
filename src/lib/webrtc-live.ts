@@ -50,7 +50,26 @@ async function postSdp(endpointUrl: string, sdp: string) {
   };
 }
 
-async function getCameraStream(facingMode: CameraFacing, withAudio: boolean) {
+async function getCameraStream(
+  facingMode: CameraFacing,
+  withAudio: boolean,
+  options?: { forSwitch?: boolean }
+) {
+  const forSwitch = options?.forSwitch ?? false;
+
+  if (forSwitch) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: withAudio,
+        video: { facingMode: { ideal: facingMode } },
+      });
+    } catch (firstError) {
+      const fallback = await getCameraStreamByDevice(facingMode, withAudio);
+      if (fallback) return fallback;
+      throw firstError;
+    }
+  }
+
   const videoBase = {
     width: { ideal: 720 },
     height: { ideal: 1280 },
@@ -60,14 +79,51 @@ async function getCameraStream(facingMode: CameraFacing, withAudio: boolean) {
   try {
     return await navigator.mediaDevices.getUserMedia({
       audio: withAudio,
-      video: { ...videoBase, facingMode: { exact: facingMode } },
-    });
-  } catch {
-    return navigator.mediaDevices.getUserMedia({
-      audio: withAudio,
       video: { ...videoBase, facingMode: { ideal: facingMode } },
     });
+  } catch (firstError) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: withAudio,
+        video: { ...videoBase, facingMode: { exact: facingMode } },
+      });
+    } catch {
+      const fallback = await getCameraStreamByDevice(facingMode, withAudio);
+      if (fallback) return fallback;
+      throw firstError;
+    }
   }
+}
+
+async function getCameraStreamByDevice(facingMode: CameraFacing, withAudio: boolean) {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cameras = devices.filter((device) => device.kind === "videoinput");
+  if (cameras.length < 2) return null;
+
+  const label = (device: MediaDeviceInfo) => device.label.toLowerCase();
+  const pick =
+    facingMode === "environment"
+      ? cameras.find(
+          (device) =>
+            label(device).includes("back") ||
+            label(device).includes("rear") ||
+            label(device).includes("environment")
+        ) ?? cameras[cameras.length - 1]
+      : cameras.find(
+          (device) =>
+            label(device).includes("front") ||
+            label(device).includes("user") ||
+            label(device).includes("selfie")
+        ) ?? cameras[0];
+
+  return navigator.mediaDevices.getUserMedia({
+    audio: withAudio,
+    video: { deviceId: { exact: pick.deviceId } },
+  });
+}
+
+function waitForCameraRelease(ms = 200) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 /** WHIP — host camera → Cloudflare. */
@@ -123,30 +179,55 @@ export class WhipPublisher {
     }
 
     const nextFacing: CameraFacing = this.facingMode === "user" ? "environment" : "user";
-    const replacement = await getCameraStream(nextFacing, false);
-    const newVideoTrack = replacement.getVideoTracks()[0];
-    if (!newVideoTrack) {
-      replacement.getTracks().forEach((track) => track.stop());
-      throw new Error("Couldn't access the other camera.");
-    }
-
     const sender = this.pc.getSenders().find((item) => item.track?.kind === "video");
-    if (!sender) {
-      newVideoTrack.stop();
-      throw new Error("No video sender to replace.");
-    }
-
-    await sender.replaceTrack(newVideoTrack);
+    if (!sender) throw new Error("No video sender to replace.");
 
     const oldVideoTrack = this.localStream.getVideoTracks()[0];
+
+    // Release the current lens before opening the other — required on most phones.
     if (oldVideoTrack) {
       this.localStream.removeTrack(oldVideoTrack);
       oldVideoTrack.stop();
     }
-    this.localStream.addTrack(newVideoTrack);
-    this.videoElement.srcObject = this.localStream;
-    await this.videoElement.play().catch(() => undefined);
-    this.facingMode = nextFacing;
+    await waitForCameraRelease();
+
+    let newVideoTrack: MediaStreamTrack | null = null;
+    try {
+      const replacement = await getCameraStream(nextFacing, false, { forSwitch: true });
+      newVideoTrack = replacement.getVideoTracks()[0] ?? null;
+      if (!newVideoTrack) {
+        replacement.getTracks().forEach((track) => track.stop());
+        throw new Error("Couldn't access the other camera.");
+      }
+
+      await sender.replaceTrack(newVideoTrack);
+      this.localStream.addTrack(newVideoTrack);
+      this.videoElement.srcObject = this.localStream;
+      await this.videoElement.play().catch(() => undefined);
+      this.facingMode = nextFacing;
+    } catch (error) {
+      // Try to restore the previous camera if flip failed.
+      try {
+        const restore = await getCameraStream(this.facingMode, false, { forSwitch: true });
+        const restoredTrack = restore.getVideoTracks()[0];
+        if (restoredTrack) {
+          await sender.replaceTrack(restoredTrack);
+          this.localStream.addTrack(restoredTrack);
+          this.videoElement.srcObject = this.localStream;
+          await this.videoElement.play().catch(() => undefined);
+        } else {
+          restore.getTracks().forEach((track) => track.stop());
+        }
+      } catch {
+        // ignore restore failure
+      }
+
+      if (error instanceof DOMException && error.name === "NotReadableError") {
+        throw new Error("Couldn't switch camera — try again in a moment.");
+      }
+      if (error instanceof Error) throw error;
+      throw new Error("Couldn't switch camera. Try again.");
+    }
   }
 
   async stop() {

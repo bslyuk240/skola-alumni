@@ -196,6 +196,7 @@ export function LiveHostPanel({
 }) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const publisherRef = useRef<WhipPublisher | null>(null);
 
   const [title, setTitle] = useState(existingSession?.title ?? "");
@@ -238,15 +239,21 @@ export function LiveHostPanel({
     }
   }
 
-  async function handleGoLive(event: FormEvent) {
-    event.preventDefault();
+  async function handleGoLive() {
+    const trimmedTitle = title.trim();
+    if (trimmedTitle.length < 2) {
+      setErrorMessage("Add a stream title (at least 2 characters) before going live.");
+      titleInputRef.current?.focus();
+      return;
+    }
+
     setBusy(true);
     setErrorMessage(null);
 
     try {
       const result = await fetchJson<{ session: LiveSession }>(`/api/tenants/${tenantSlug}/live`, {
         method: "POST",
-        body: { title: title.trim(), ...(groupSlug ? { groupSlug } : {}) },
+        body: { title: trimmedTitle, ...(groupSlug ? { groupSlug } : {}) },
       });
 
       flushSync(() => {
@@ -395,6 +402,49 @@ export function LiveHostPanel({
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Going live for {scopeLabel}
+        </p>
+        <label htmlFor="live-title" className="mt-3 block text-sm font-semibold text-neutral-900">
+          Stream title
+        </label>
+        <input
+          id="live-title"
+          ref={titleInputRef}
+          required
+          minLength={2}
+          maxLength={255}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(event) => {
+            // Mobile keyboards often submit forms on Enter/Done — require an explicit tap.
+            if (event.key === "Enter") event.preventDefault();
+          }}
+          onFocus={(event) => {
+            requestAnimationFrame(() => {
+              event.target.scrollIntoView({ block: "center", behavior: "smooth" });
+            });
+          }}
+          placeholder="e.g. AGM updates"
+          enterKeyHint="done"
+          autoComplete="off"
+          className="input mt-2 bg-white text-base text-neutral-900 caret-primary-600"
+        />
+        <p className="mt-2 text-xs text-neutral-500">
+          Tap <span className="font-semibold text-neutral-700">Go live</span> when you&rsquo;re ready — typing won&rsquo;t start the stream.
+        </p>
+        <button
+          type="button"
+          disabled={busy || title.trim().length < 2}
+          onClick={handleGoLive}
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-error-600 px-4 py-3 text-sm font-medium text-white hover:bg-error-700 disabled:opacity-60"
+        >
+          <Radio className="h-4 w-4" />
+          {busy ? "Starting..." : "Go live"}
+        </button>
+      </div>
+
       <LiveStage>
         <video
           ref={videoRef}
@@ -404,7 +454,7 @@ export function LiveHostPanel({
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-950/85 px-6 text-center">
           <Radio className="h-8 w-8 text-white/50" />
-          <p className="text-sm text-white/70">Camera preview appears when you go live</p>
+          <p className="text-sm text-white/70">Camera preview appears after you go live</p>
         </div>
       </LiveStage>
 
@@ -413,27 +463,6 @@ export function LiveHostPanel({
           {errorMessage}
         </div>
       )}
-
-      <form onSubmit={handleGoLive} className="flex flex-col gap-3">
-        <p className="text-xs text-neutral-500">Going live for {scopeLabel}</p>
-        <input
-          required
-          minLength={2}
-          maxLength={255}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Live title (e.g. AGM updates)"
-          className="input"
-        />
-        <button
-          type="submit"
-          disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-error-600 px-4 py-3 text-sm font-medium text-white hover:bg-error-700 disabled:opacity-60"
-        >
-          <Radio className="h-4 w-4" />
-          {busy ? "Starting..." : "Go live"}
-        </button>
-      </form>
     </div>
   );
 }
