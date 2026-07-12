@@ -9,9 +9,10 @@ import {
   getAuthorizedGroupMembership,
   getTenantGroup,
 } from "@/lib/group-access";
-import { getApprovedTenantMembership } from "@/lib/tenant-access";
+import { getApprovedTenantMembership, getAuthorizedTenantMembership } from "@/lib/tenant-access";
 import {
   GROUP_LIVE_HOST_ROLES,
+  SCHOOL_LIVE_HOST_ROLES,
   assertCanWatchLive,
   getActiveLiveSession,
   getLivePlanGate,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/live-access";
 import {
   LiveEmptyState,
+  LiveManagePanel,
   LiveWatchPanel,
 } from "../../../live/_components/live-panels";
 
@@ -38,8 +40,11 @@ export default async function GroupLivePage({
   if (!tenantMember) redirect("/select-workspace");
 
   const groupMember = await getApprovedGroupMembership(user.id, resolved.group.id);
-  const canHost = Boolean(
+  const canGroupHost = Boolean(
     await getAuthorizedGroupMembership(user.id, resolved.group.id, GROUP_LIVE_HOST_ROLES)
+  );
+  const canSchoolHost = Boolean(
+    await getAuthorizedTenantMembership(user.id, tenantSlug, SCHOOL_LIVE_HOST_ROLES)
   );
   const planGate = await getLivePlanGate(resolved.tenant.id);
   const session = await getActiveLiveSession(resolved.tenant.id);
@@ -59,7 +64,7 @@ export default async function GroupLivePage({
           <LiveEmptyState
             tenantSlug={tenantSlug}
             groupSlug={groupSlug}
-            canHost={canHost}
+            canHost={canGroupHost}
             planBlockedMessage={planGate.ok ? null : planGate.error}
           />
         )}
@@ -71,6 +76,31 @@ export default async function GroupLivePage({
             </Link>
           </p>
         )}
+      </main>
+    );
+  }
+
+  const isBroadcaster = session.hostUserId === user.id;
+  const canManage = isBroadcaster || canGroupHost || canSchoolHost;
+
+  if (canManage) {
+    return (
+      <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-4">
+        <Link href={`/${tenantSlug}/groups/${groupSlug}`} className="text-sm text-primary-600">
+          ← Back to group
+        </Link>
+        <h1 className="text-lg font-semibold text-neutral-900">{resolved.group.name} — Live controls</h1>
+        <LiveManagePanel
+          tenantSlug={tenantSlug}
+          groupSlug={groupSlug}
+          scopeLabel={resolved.group.name}
+          isBroadcaster={isBroadcaster}
+          session={{
+            ...publicLiveSessionPayload(session, { groupSlug }),
+            startedAt: session.startedAt.toISOString(),
+            whipPublishUrl: isBroadcaster ? session.whipPublishUrl : undefined,
+          }}
+        />
       </main>
     );
   }

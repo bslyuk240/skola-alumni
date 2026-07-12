@@ -13,7 +13,7 @@ import {
   getLivePlanGate,
   publicLiveSessionPayload,
 } from "@/lib/live-access";
-import { LiveEmptyState, LiveWatchPanel } from "./_components/live-panels";
+import { LiveEmptyState, LiveManagePanel, LiveWatchPanel } from "./_components/live-panels";
 
 export default async function TenantLivePage({
   params,
@@ -53,6 +53,36 @@ export default async function TenantLivePage({
     }
   }
 
+  const isBroadcaster = session.hostUserId === user.id;
+  const canManage = isBroadcaster || canHost;
+
+  if (canManage) {
+    const groupSlug = await getGroupSlugForSession(session.groupId);
+    return (
+      <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-neutral-900">Live controls</h1>
+          {isBroadcaster && (
+            <Link href={`/${tenantSlug}/live/host`} className="text-sm font-medium text-primary-600">
+              Camera desk
+            </Link>
+          )}
+        </div>
+        <LiveManagePanel
+          tenantSlug={tenantSlug}
+          groupSlug={groupSlug}
+          scopeLabel={membership.tenant.name}
+          isBroadcaster={isBroadcaster}
+          session={{
+            ...publicLiveSessionPayload(session, { groupSlug }),
+            startedAt: session.startedAt.toISOString(),
+            whipPublishUrl: isBroadcaster ? session.whipPublishUrl : undefined,
+          }}
+        />
+      </main>
+    );
+  }
+
   const canWatch = await assertCanWatchLive({ userId: user.id, tenantSlug, session });
   if (!canWatch.ok) {
     return (
@@ -82,14 +112,7 @@ export default async function TenantLivePage({
 
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-neutral-900">Live</h1>
-        {canHost && (
-          <Link href={`/${tenantSlug}/live/host`} className="text-sm font-medium text-primary-600">
-            Host
-          </Link>
-        )}
-      </div>
+      <h1 className="text-lg font-semibold text-neutral-900">Live</h1>
       <LiveWatchPanel
         tenantSlug={tenantSlug}
         scopeLabel={membership.tenant.name}

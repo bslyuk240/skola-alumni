@@ -57,25 +57,48 @@ export function LiveHostPanel({
   tenantSlug,
   groupSlug,
   scopeLabel,
+  existingSession = null,
 }: {
   tenantSlug: string;
   groupSlug?: string;
   scopeLabel: string;
+  existingSession?: LiveSession | null;
 }) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const publisherRef = useRef<WhipPublisher | null>(null);
 
-  const [title, setTitle] = useState("");
-  const [session, setSession] = useState<LiveSession | null>(null);
+  const [title, setTitle] = useState(existingSession?.title ?? "");
+  const [session, setSession] = useState<LiveSession | null>(existingSession);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cameraOn, setCameraOn] = useState(false);
 
   useEffect(() => {
     return () => {
       void publisherRef.current?.stop();
     };
   }, []);
+
+  async function resumeCamera() {
+    if (!session?.whipPublishUrl || !videoRef.current) {
+      setErrorMessage("Missing publish URL — reopen Go Live from a fresh start if this persists.");
+      return;
+    }
+    setBusy(true);
+    setErrorMessage(null);
+    try {
+      await publisherRef.current?.stop();
+      const publisher = new WhipPublisher(session.whipPublishUrl, videoRef.current);
+      publisherRef.current = publisher;
+      await publisher.start();
+      setCameraOn(true);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Couldn't reconnect the camera.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleGoLive(event: FormEvent) {
     event.preventDefault();
@@ -97,6 +120,7 @@ export function LiveHostPanel({
       const publisher = new WhipPublisher(result.session.whipPublishUrl, videoRef.current);
       publisherRef.current = publisher;
       await publisher.start();
+      setCameraOn(true);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Couldn't go live. Try again.");
     } finally {
@@ -106,13 +130,22 @@ export function LiveHostPanel({
 
   async function handleEndLive() {
     if (!session) return;
+    if (
+      !window.confirm(
+        "End this live for everyone? Viewers will be disconnected immediately."
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     setErrorMessage(null);
     try {
       await publisherRef.current?.stop();
       publisherRef.current = null;
+      setCameraOn(false);
       await fetchJson(`/api/tenants/${tenantSlug}/live/${session.id}/end`, { method: "POST" });
       setSession(null);
+      router.push(groupSlug ? `/${tenantSlug}/groups/${groupSlug}/live` : `/${tenantSlug}/live`);
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Couldn't end the live.");
@@ -130,10 +163,14 @@ export function LiveHostPanel({
           playsInline
           className="absolute inset-0 h-full w-full object-cover"
         />
-        {!session && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-950/80 px-6 text-center">
+        {!cameraOn && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-950/85 px-6 text-center">
             <Radio className="h-8 w-8 text-white/50" />
-            <p className="text-sm text-white/70">Camera preview appears when you go live</p>
+            <p className="text-sm text-white/70">
+              {session
+                ? "Stream is live — reconnect your camera to keep broadcasting"
+                : "Camera preview appears when you go live"}
+            </p>
           </div>
         )}
         {session && (
@@ -175,16 +212,158 @@ export function LiveHostPanel({
         <div className="flex flex-col gap-3">
           <p className="text-sm font-semibold text-neutral-900">{session.title}</p>
           <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} compact />
+          {!cameraOn && session.whipPublishUrl && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={resumeCamera}
+              className="rounded-md bg-primary-600 px-4 py-3 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60"
+            >
+              {busy ? "Connecting..." : "Reconnect camera"}
+            </button>
+          )}
           <button
             type="button"
             disabled={busy}
             onClick={handleEndLive}
-            className="rounded-md border border-neutral-300 px-4 py-3 text-sm font-medium text-neutral-800 hover:bg-neutral-100 disabled:opacity-60"
+            className="rounded-md bg-error-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-error-700 disabled:opacity-60"
           >
             {busy ? "Ending..." : "End live"}
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Admin/host control desk for an active live — preview + End live (no member Join lobby). */
+export function LiveManagePanel({
+  tenantSlug,
+  groupSlug,
+  scopeLabel,
+  session,
+  isBroadcaster,
+}: {
+  tenantSlug: string;
+  groupSlug?: string | null;
+  scopeLabel: string;
+  session: LiveSession;
+  isBroadcaster: boolean;
+}) {
+  const router = useRouter();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<WhepPlayer | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [previewReady, setPreviewReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function connectPreview() {
+      if (!videoRef.current) return;
+      try {
+        const player = new WhepPlayer(session.whepPlayUrl, videoRef.current);
+        playerRef.current = player;
+        await player.start();
+        if (!cancelled) setPreviewReady(true);
+      } catch {
+        if (!cancelled) setPreviewReady(false);
+      }
+    }
+
+    void connectPreview();
+    return () => {
+      cancelled = true;
+      void playerRef.current?.stop();
+      playerRef.current = null;
+    };
+  }, [session.whepPlayUrl]);
+
+  async function handleEndLive() {
+    if (
+      !window.confirm(
+        "End this live for everyone? Viewers will be disconnected immediately."
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setErrorMessage(null);
+    try {
+      await playerRef.current?.stop();
+      playerRef.current = null;
+      await fetchJson(`/api/tenants/${tenantSlug}/live/${session.id}/end`, { method: "POST" });
+      router.push(groupSlug ? `/${tenantSlug}/groups/${groupSlug}/live` : `/${tenantSlug}/live`);
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Couldn't end the live.");
+      setBusy(false);
+    }
+  }
+
+  const hostHref = groupSlug
+    ? `/${tenantSlug}/groups/${groupSlug}/live/host`
+    : `/${tenantSlug}/live/host`;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-3">
+        <p className="text-sm font-semibold text-primary-800">You&rsquo;re in host controls</p>
+        <p className="mt-0.5 text-xs text-primary-700">
+          Members see a Join lobby. You can end the stream anytime from here.
+        </p>
+      </div>
+
+      <LiveStage>
+        <video
+          ref={videoRef}
+          playsInline
+          autoPlay
+          muted
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        {!previewReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-neutral-950">
+            <p className="text-sm text-white/60">Loading preview...</p>
+          </div>
+        )}
+        <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full bg-black/55 px-2.5 py-1">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-error-600" />
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Live</span>
+        </div>
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+          <p className="text-sm font-semibold text-white">{session.title}</p>
+          <p className="text-[11px] text-white/70">{scopeLabel}</p>
+        </div>
+      </LiveStage>
+
+      {errorMessage && (
+        <div className="rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
+          {errorMessage}
+        </div>
+      )}
+
+      <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} compact />
+
+      {isBroadcaster && (
+        <Link
+          href={hostHref}
+          className="rounded-md border border-neutral-300 px-4 py-3 text-center text-sm font-medium text-neutral-800 hover:bg-neutral-100"
+        >
+          Open camera / broadcast desk
+        </Link>
+      )}
+
+      <button
+        type="button"
+        disabled={busy}
+        onClick={handleEndLive}
+        className="rounded-md bg-error-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-error-700 disabled:opacity-60"
+      >
+        {busy ? "Ending live..." : "End live for everyone"}
+      </button>
     </div>
   );
 }
