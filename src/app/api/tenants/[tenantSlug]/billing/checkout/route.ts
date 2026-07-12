@@ -6,7 +6,7 @@ import { subscriptionPlans } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
 import { initializePaystackTransaction } from "@/lib/paystack";
-import { env } from "@/config/env";
+import { resolveAppOrigin } from "@/lib/app-origin";
 import { handleApiError } from "@/lib/api-error";
 
 const checkoutSchema = z.object({
@@ -46,10 +46,11 @@ export async function POST(
     const naira = Number(body.billingCycle === "YEARLY" ? plan.priceYearly : plan.priceMonthly);
     const amountKobo = Math.round(naira * 100);
 
+    const origin = resolveAppOrigin(req);
     const { authorization_url: authorizationUrl } = await initializePaystackTransaction({
       email: user.email,
       amountKobo,
-      callbackUrl: `${env.NEXT_PUBLIC_APP_URL}/${tenantSlug}/admin/billing/callback`,
+      callbackUrl: `${origin}/${tenantSlug}/billing/callback`,
       metadata: {
         tenantId: authorized.tenant.id,
         tenantSlug,

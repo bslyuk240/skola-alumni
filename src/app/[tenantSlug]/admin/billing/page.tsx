@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getAuthorizedTenantMembership } from "@/lib/tenant-access";
 import { getBillingLockStatus } from "@/lib/billing-status";
 import { PlanSelector } from "./_components/plan-selector";
+import { ConfirmPaymentForm } from "./_components/confirm-payment-form";
 
 function formatStatus(status: string) {
   return status
@@ -93,6 +94,8 @@ export default async function TenantBillingPage({
           }))}
         />
       </div>
+
+      <ConfirmPaymentForm tenantSlug={tenantSlug} />
     </main>
   );
 }

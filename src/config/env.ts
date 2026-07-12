@@ -9,7 +9,15 @@ const coreSchema = z.object({
   // Server-only twin of the above — clerkMiddleware's redirect/handshake logic reads this directly.
   CLERK_PUBLISHABLE_KEY: z.string().min(1, "CLERK_PUBLISHABLE_KEY is required"),
   CLERK_SECRET_KEY: z.string().min(1, "CLERK_SECRET_KEY is required"),
-  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_APP_URL: z
+    .string()
+    .min(1)
+    .transform((value) => {
+      const trimmed = value.trim().replace(/\/$/, "");
+      return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    })
+    .pipe(z.string().url())
+    .default("http://localhost:3000"),
 });
 
 export type CoreEnv = z.infer<typeof coreSchema>;
