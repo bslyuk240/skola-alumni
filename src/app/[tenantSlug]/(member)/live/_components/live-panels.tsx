@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Heart, Radio, Send, Users } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
 import { WhipPublisher, WhepPlayer } from "@/lib/webrtc-live";
+import { useSetLiveImmersive } from "../../_components/live-immersive";
 
 type LiveSession = {
   id: string;
@@ -401,6 +402,9 @@ export function LiveWatchPanel({
   const [muted, setMuted] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+
+  useSetLiveImmersive(joined);
 
   useEffect(() => {
     if (!joined) return;
@@ -408,7 +412,6 @@ export function LiveWatchPanel({
     let cancelled = false;
 
     async function connect() {
-      // Wait one frame so the always-mounted video is painted after lobby → stream switch.
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (cancelled || !videoRef.current) return;
 
@@ -445,6 +448,39 @@ export function LiveWatchPanel({
     };
   }, [joined, session.whepPlayUrl]);
 
+  // Dock the composer above the iOS/Android keyboard (visualViewport).
+  useEffect(() => {
+    if (!joined) {
+      setKeyboardInset(0);
+      return;
+    }
+
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const sync = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardInset(inset);
+    };
+
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+    };
+  }, [joined]);
+
+  useEffect(() => {
+    if (!joined) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [joined]);
+
   async function toggleLike() {
     setLiking(true);
     try {
@@ -466,6 +502,7 @@ export function LiveWatchPanel({
     setJoined(false);
     setJoining(false);
     setMuted(true);
+    setKeyboardInset(0);
     setErrorMessage(null);
   }
 
@@ -478,18 +515,18 @@ export function LiveWatchPanel({
     if (!next) void video.play().catch(() => undefined);
   }
 
-  return (
-    <div className={`flex flex-col gap-3 ${joined ? "relative" : ""}`}>
-      <LiveStage className={joined ? "overflow-hidden" : ""}>
-        <video
-          ref={videoRef}
-          playsInline
-          autoPlay
-          muted
-          className={`absolute inset-0 h-full w-full bg-black object-cover ${joined ? "opacity-100" : "opacity-0"}`}
-        />
-
-        {!joined ? (
+  // Lobby — stream info before joining
+  if (!joined) {
+    return (
+      <div className="flex flex-col gap-3 px-4 py-4">
+        <LiveStage>
+          <video
+            ref={videoRef}
+            playsInline
+            autoPlay
+            muted
+            className="absolute inset-0 h-full w-full bg-black object-cover opacity-0"
+          />
           <div className="absolute inset-0 z-10 flex flex-col justify-between bg-gradient-to-b from-primary-900 via-neutral-950 to-neutral-950 p-5 text-white">
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1.5 rounded-full bg-error-600 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide">
@@ -526,69 +563,99 @@ export function LiveWatchPanel({
               </button>
             </div>
           </div>
-        ) : (
-          <>
-            {joining && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
-                <p className="text-sm font-medium text-white">Connecting...</p>
-              </div>
-            )}
+        </LiveStage>
 
-            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between bg-gradient-to-b from-black/45 via-transparent to-black/55 p-3">
-              <div className="pointer-events-auto flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <span className="flex items-center gap-1.5 rounded-full bg-error-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-                      Live
-                    </span>
-                  </div>
-                  <p className="truncate text-sm font-semibold text-white drop-shadow">{session.title}</p>
-                  <p className="truncate text-[11px] text-white/70">{scopeLabel}</p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleLeave}
-                    className="rounded-full bg-black/50 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-black/70"
-                  >
-                    Leave
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleMute}
-                    className="rounded-full bg-black/50 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-black/70"
-                  >
-                    {muted ? "Unmute" : "Mute"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="pointer-events-auto flex items-end gap-2">
-                <div className="min-w-0 flex-1">
-                  <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} overlay />
-                </div>
-                <button
-                  type="button"
-                  disabled={liking}
-                  onClick={toggleLike}
-                  className="mb-1 flex flex-col items-center gap-1 rounded-full px-1 py-1 text-white"
-                >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45">
-                    <Heart
-                      className={`h-5 w-5 ${session.likedByMe ? "fill-error-600 text-error-600" : ""}`}
-                    />
-                  </span>
-                  <span className="text-[11px] font-medium drop-shadow">{session.likeCount}</span>
-                </button>
-              </div>
-            </div>
-          </>
+        {errorMessage && (
+          <div className="rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
+            {errorMessage}
+          </div>
         )}
-      </LiveStage>
+      </div>
+    );
+  }
+
+  // TikTok-style fullscreen watch — edge-to-edge video, chat + composer pinned to bottom.
+  return (
+    <div className="fixed inset-0 z-50 bg-black">
+      <video
+        ref={videoRef}
+        playsInline
+        autoPlay
+        muted
+        className="absolute inset-0 h-full w-full bg-black object-cover"
+      />
+
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70" />
+
+      {joining && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40">
+          <p className="text-sm font-medium text-white">Connecting...</p>
+        </div>
+      )}
+
+      {/* Top chrome */}
+      <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-3 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="min-w-0">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="flex items-center gap-1.5 rounded-full bg-error-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              Live
+            </span>
+            <span className="truncate rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-medium text-white/85">
+              {scopeLabel}
+            </span>
+          </div>
+          <p className="truncate text-sm font-semibold text-white drop-shadow">{session.title}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="rounded-full bg-black/45 px-3 py-1.5 text-[11px] font-medium text-white"
+          >
+            {muted ? "Unmute" : "Mute"}
+          </button>
+          <button
+            type="button"
+            onClick={handleLeave}
+            className="rounded-full bg-black/45 px-3 py-1.5 text-[11px] font-medium text-white"
+            aria-label="Leave live"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom: comments + composer + like — lifts with keyboard */}
+      <div
+        className="absolute inset-x-0 bottom-0 z-20 px-3"
+        style={{
+          paddingBottom: `calc(${keyboardInset}px + max(0.75rem, env(safe-area-inset-bottom)))`,
+          transition: "padding-bottom 120ms linear",
+        }}
+      >
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} overlay />
+          </div>
+          <button
+            type="button"
+            disabled={liking}
+            onClick={toggleLike}
+            className="mb-0.5 flex flex-col items-center gap-1 rounded-full px-1 py-1 text-white"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45">
+              <Heart
+                className={`h-5 w-5 ${session.likedByMe ? "fill-error-600 text-error-600" : ""}`}
+              />
+            </span>
+            <span className="text-[11px] font-medium drop-shadow">{session.likeCount}</span>
+          </button>
+        </div>
+      </div>
 
       {errorMessage && (
-        <div className="rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
+        <div className="absolute inset-x-3 top-20 z-30 rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
           {errorMessage}
         </div>
       )}
@@ -610,6 +677,7 @@ function LiveChatPanel({
   const [comments, setComments] = useState<LiveComment[]>([]);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [focused, setFocused] = useState(false);
   const lastStampRef = useRef<string | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const sendingLockRef = useRef(false);
@@ -664,15 +732,8 @@ function LiveChatPanel({
     el.scrollTop = el.scrollHeight;
   }, [comments]);
 
-  function focusComposerWithoutPageJump() {
-    const input = inputRef.current;
-    if (!input) return;
-    // Keep the live stage fixed — don't let mobile scroll the whole page up behind the keyboard.
-    input.focus({ preventScroll: true });
-    const y = window.scrollY;
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: y, left: 0, behavior: "auto" });
-    });
+  function refocusComposer() {
+    inputRef.current?.focus({ preventScroll: true });
   }
 
   async function handleSend(event: FormEvent) {
@@ -692,8 +753,7 @@ function LiveChatPanel({
       const stamp = toIsoStamp(created.createdAt);
       if (stamp) lastStampRef.current = stamp;
       setComments((prev) => mergeComments(prev, [created]));
-      // Keep focus for rapid chat without re-triggering a page scroll jump.
-      focusComposerWithoutPageJump();
+      refocusComposer();
     } catch {
       setDraft(content);
     } finally {
@@ -702,65 +762,44 @@ function LiveChatPanel({
     }
   }
 
-  const composer = (
-    <form
-      onSubmit={handleSend}
-      className={overlay ? "flex gap-2" : "mt-3 flex gap-2"}
-      onFocusCapture={(event) => {
-        if (event.target instanceof HTMLInputElement) {
-          event.target.focus({ preventScroll: true });
-        }
-      }}
-    >
-      <input
-        ref={inputRef}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onFocus={(e) => {
-          e.target.focus({ preventScroll: true });
-          const y = window.scrollY;
-          requestAnimationFrame(() => window.scrollTo(0, y));
-        }}
-        maxLength={280}
-        enterKeyHint="send"
-        autoComplete="off"
-        placeholder={overlay ? "Say something..." : "Add a comment"}
-        className={
-          overlay
-            ? "min-w-0 flex-1 rounded-full border border-white/20 bg-black/40 px-3 py-2 text-xs text-white placeholder:text-white/50 outline-none focus:border-white/40"
-            : "input flex-1 text-sm"
-        }
-      />
-      <button
-        type="submit"
-        disabled={submitting || !draft.trim()}
-        className={
-          overlay
-            ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-neutral-900 disabled:opacity-50"
-            : "rounded-md bg-primary-600 px-3 text-white disabled:opacity-50"
-        }
-        aria-label="Send comment"
-      >
-        <Send className={overlay ? "h-3.5 w-3.5" : "h-4 w-4"} />
-      </button>
-    </form>
-  );
-
   if (overlay) {
     return (
-      <div className="flex max-w-[85%] flex-col gap-2">
+      <div className="flex max-w-full flex-col gap-2">
         <div
           ref={listRef}
-          className="flex max-h-36 flex-col gap-1.5 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className={`flex flex-col justify-end gap-1.5 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+            focused ? "max-h-28" : "max-h-44"
+          }`}
         >
           {comments.slice(-12).map((comment) => (
-            <p key={comment.id} className="text-xs leading-snug text-white drop-shadow">
+            <p key={comment.id} className="max-w-[90%] text-xs leading-snug text-white drop-shadow">
               <span className="font-semibold">{comment.authorName}</span>{" "}
               <span className="text-white/90">{comment.content}</span>
             </p>
           ))}
         </div>
-        {composer}
+        <form onSubmit={handleSend} className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            maxLength={280}
+            enterKeyHint="send"
+            autoComplete="off"
+            placeholder="Type..."
+            className="min-w-0 flex-1 rounded-full border border-white/25 bg-black/45 px-3.5 py-2.5 text-sm text-white placeholder:text-white/55 outline-none focus:border-white/45"
+          />
+          <button
+            type="submit"
+            disabled={submitting || !draft.trim()}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-neutral-900 disabled:opacity-50"
+            aria-label="Send comment"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </form>
       </div>
     );
   }
@@ -783,7 +822,26 @@ function LiveChatPanel({
           ))
         )}
       </div>
-      {composer}
+      <form onSubmit={handleSend} className="mt-3 flex gap-2">
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={280}
+          enterKeyHint="send"
+          autoComplete="off"
+          placeholder="Add a comment"
+          className="input flex-1 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={submitting || !draft.trim()}
+          className="rounded-md bg-primary-600 px-3 text-white disabled:opacity-50"
+          aria-label="Send comment"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      </form>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Wallet, Users, Search, UserRound, Radio } from "lucide-react";
+import { Home, Wallet, Users, UserRound, Radio } from "lucide-react";
 
 export function BottomNav({ tenantSlug }: { tenantSlug: string }) {
   const pathname = usePathname();

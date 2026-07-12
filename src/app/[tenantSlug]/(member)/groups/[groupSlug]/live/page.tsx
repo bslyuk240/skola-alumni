@@ -129,11 +129,7 @@ export default async function GroupLivePage({
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-4">
-      <Link href={`/${tenantSlug}/groups/${groupSlug}`} className="text-sm text-primary-600">
-        ← Back to group
-      </Link>
-      <h1 className="text-lg font-semibold text-neutral-900">{resolved.group.name} Live</h1>
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col">
       <LiveWatchPanel
         tenantSlug={tenantSlug}
         scopeLabel={resolved.group.name}

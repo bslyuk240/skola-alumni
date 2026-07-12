@@ -111,8 +111,7 @@ export default async function TenantLivePage({
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-4">
-      <h1 className="text-lg font-semibold text-neutral-900">Live</h1>
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col">
       <LiveWatchPanel
         tenantSlug={tenantSlug}
         scopeLabel={membership.tenant.name}
