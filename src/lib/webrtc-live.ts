@@ -3,6 +3,8 @@
  * Aligned with Cloudflare's WHIP/WHEP browser examples (bundle + track accumulation).
  */
 
+export type CameraFacing = "user" | "environment";
+
 function resolveResourceUrl(locationHeader: string | null, endpointUrl: string): string | null {
   if (!locationHeader) return null;
   try {
@@ -48,26 +50,45 @@ async function postSdp(endpointUrl: string, sdp: string) {
   };
 }
 
+async function getCameraStream(facingMode: CameraFacing, withAudio: boolean) {
+  const videoBase = {
+    width: { ideal: 720 },
+    height: { ideal: 1280 },
+    aspectRatio: { ideal: 9 / 16 },
+  };
+
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: withAudio,
+      video: { ...videoBase, facingMode: { exact: facingMode } },
+    });
+  } catch {
+    return navigator.mediaDevices.getUserMedia({
+      audio: withAudio,
+      video: { ...videoBase, facingMode: { ideal: facingMode } },
+    });
+  }
+}
+
 /** WHIP — host camera → Cloudflare. */
 export class WhipPublisher {
   private pc: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
   private resourceUrl: string | null = null;
+  private facingMode: CameraFacing = "user";
 
   constructor(
     private publishUrl: string,
     private videoElement: HTMLVideoElement
   ) {}
 
-  async start() {
-    this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: {
-        facingMode: "user",
-        width: { ideal: 720 },
-        height: { ideal: 1280 },
-      },
-    });
+  getFacingMode() {
+    return this.facingMode;
+  }
+
+  async start(facingMode: CameraFacing = "user") {
+    this.facingMode = facingMode;
+    this.localStream = await getCameraStream(facingMode, true);
 
     this.videoElement.srcObject = this.localStream;
     this.videoElement.muted = true;
@@ -93,6 +114,39 @@ export class WhipPublisher {
     const { resourceUrl, answerSdp } = await postSdp(this.publishUrl, localSdp);
     this.resourceUrl = resourceUrl;
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+  }
+
+  /** Flip front ↔ back camera without restarting the WHIP session. */
+  async switchCamera() {
+    if (!this.pc || !this.localStream) {
+      throw new Error("Camera is not publishing yet.");
+    }
+
+    const nextFacing: CameraFacing = this.facingMode === "user" ? "environment" : "user";
+    const replacement = await getCameraStream(nextFacing, false);
+    const newVideoTrack = replacement.getVideoTracks()[0];
+    if (!newVideoTrack) {
+      replacement.getTracks().forEach((track) => track.stop());
+      throw new Error("Couldn't access the other camera.");
+    }
+
+    const sender = this.pc.getSenders().find((item) => item.track?.kind === "video");
+    if (!sender) {
+      newVideoTrack.stop();
+      throw new Error("No video sender to replace.");
+    }
+
+    await sender.replaceTrack(newVideoTrack);
+
+    const oldVideoTrack = this.localStream.getVideoTracks()[0];
+    if (oldVideoTrack) {
+      this.localStream.removeTrack(oldVideoTrack);
+      oldVideoTrack.stop();
+    }
+    this.localStream.addTrack(newVideoTrack);
+    this.videoElement.srcObject = this.localStream;
+    await this.videoElement.play().catch(() => undefined);
+    this.facingMode = nextFacing;
   }
 
   async stop() {

@@ -39,15 +39,13 @@ export default async function GroupLivePage({
   const tenantMember = await getApprovedTenantMembership(user.id, tenantSlug);
   if (!tenantMember) redirect("/select-workspace");
 
-  const groupMember = await getApprovedGroupMembership(user.id, resolved.group.id);
-  const canGroupHost = Boolean(
-    await getAuthorizedGroupMembership(user.id, resolved.group.id, GROUP_LIVE_HOST_ROLES)
-  );
-  const canSchoolHost = Boolean(
-    await getAuthorizedTenantMembership(user.id, tenantSlug, SCHOOL_LIVE_HOST_ROLES)
-  );
-  const planGate = await getLivePlanGate(resolved.tenant.id);
-  const session = await getActiveLiveSession(resolved.tenant.id);
+  const [groupMember, canGroupHost, canSchoolHost, planGate, session] = await Promise.all([
+    getApprovedGroupMembership(user.id, resolved.group.id),
+    getAuthorizedGroupMembership(user.id, resolved.group.id, GROUP_LIVE_HOST_ROLES).then(Boolean),
+    getAuthorizedTenantMembership(user.id, tenantSlug, SCHOOL_LIVE_HOST_ROLES).then(Boolean),
+    getLivePlanGate(resolved.tenant.id),
+    getActiveLiveSession(resolved.tenant.id),
+  ]);
 
   if (!session || session.groupId !== resolved.group.id) {
     return (
@@ -85,11 +83,7 @@ export default async function GroupLivePage({
 
   if (canManage) {
     return (
-      <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 px-4 py-4">
-        <Link href={`/${tenantSlug}/groups/${groupSlug}`} className="text-sm text-primary-600">
-          ← Back to group
-        </Link>
-        <h1 className="text-lg font-semibold text-neutral-900">{resolved.group.name} — Live controls</h1>
+      <main className="mx-auto flex w-full max-w-xl flex-1 flex-col">
         <LiveManagePanel
           tenantSlug={tenantSlug}
           groupSlug={groupSlug}
@@ -114,19 +108,20 @@ export default async function GroupLivePage({
     );
   }
 
-  const [{ count: likeCount }] = await db
-    .select({ count: sql<number>`count(*)`.mapWith(Number) })
-    .from(liveReactions)
-    .where(and(eq(liveReactions.sessionId, session.id), eq(liveReactions.type, "LIKE")));
-  const likedByMe = Boolean(
-    await db.query.liveReactions.findFirst({
+  const [likeRows, likedByMe] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(liveReactions)
+      .where(and(eq(liveReactions.sessionId, session.id), eq(liveReactions.type, "LIKE"))),
+    db.query.liveReactions.findFirst({
       where: and(
         eq(liveReactions.sessionId, session.id),
         eq(liveReactions.userId, user.id),
         eq(liveReactions.type, "LIKE")
       ),
-    })
-  );
+    }),
+  ]);
+  const likeCount = likeRows[0]?.count ?? 0;
 
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col">
@@ -134,7 +129,7 @@ export default async function GroupLivePage({
         tenantSlug={tenantSlug}
         scopeLabel={resolved.group.name}
         initialSession={{
-          ...publicLiveSessionPayload(session, { groupSlug, likeCount, likedByMe }),
+          ...publicLiveSessionPayload(session, { groupSlug, likeCount, likedByMe: Boolean(likedByMe) }),
           startedAt: session.startedAt.toISOString(),
         }}
       />

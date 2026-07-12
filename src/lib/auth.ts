@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -9,8 +10,10 @@ import { users } from "@/db/schema";
  * Lazily syncs from Clerk's backend API if the row doesn't exist yet — the `user.created`
  * webhook (src/app/api/webhooks/clerk) may not have landed (e.g. no public tunnel configured
  * for Svix delivery in local dev), so callers can't rely on the webhook alone.
+ *
+ * Wrapped in React `cache()` so layout + page in the same request share one lookup.
  */
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const { userId: clerkId } = await auth();
   if (!clerkId) return null;
 
@@ -28,7 +31,7 @@ export async function getCurrentUser() {
   await db.insert(users).values({ clerkId, email: primaryEmail }).onConflictDoNothing({ target: users.clerkId });
 
   return (await db.query.users.findFirst({ where: eq(users.clerkId, clerkId) })) ?? null;
-}
+});
 
 /** Fetches a user's membership + status within a given tenant, scoped by internal user id. */
 export async function getTenantMembership(userId: string, tenantId: string) {

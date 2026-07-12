@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal, flushSync } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Radio, Send, Users } from "lucide-react";
+import { Heart, Radio, Send, SwitchCamera, Users } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
-import { WhipPublisher, WhepPlayer } from "@/lib/webrtc-live";
+import { WhipPublisher, WhepPlayer, type CameraFacing } from "@/lib/webrtc-live";
 import { useSetLiveImmersive } from "../../_components/live-immersive";
 
 type LiveSession = {
@@ -30,7 +37,7 @@ type LiveComment = {
   userId: string;
 };
 
-/** Fixed TikTok-style portrait frame — same size for lobby preview, watch, and host. */
+/** Fixed TikTok-style portrait frame — lobby / pre-live cards. */
 function LiveStage({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div
@@ -43,6 +50,78 @@ function LiveStage({ children, className = "" }: { children: ReactNode; classNam
       {children}
     </div>
   );
+}
+
+/**
+ * Fullscreen shell with a centered 9:16 video plane so host + members share the same crop
+ * (avoids phone viewports taller than 9:16 looking more zoomed with object-cover).
+ */
+function LiveFullscreenShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden bg-black">
+      {children}
+    </div>
+  );
+}
+
+function LivePortraitVideo({
+  videoRef,
+  mirrored = false,
+  muted = true,
+  className = "",
+}: {
+  videoRef: RefObject<HTMLVideoElement | null>;
+  mirrored?: boolean;
+  muted?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-black">
+      <div className="relative h-full max-h-[100dvh] w-auto max-w-full aspect-[9/16] overflow-hidden">
+        <video
+          ref={videoRef}
+          muted={muted}
+          playsInline
+          autoPlay
+          className={`absolute inset-0 h-full w-full bg-black object-cover ${mirrored ? "-scale-x-100" : ""} ${className}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Lock body scroll while immersive live is open (keyboard-safe). */
+function useLiveBodyLock(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousWidth = document.body.style.width;
+    const scrollY = window.scrollY;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
+    const vv = window.visualViewport;
+    const keepPinned = () => {
+      window.scrollTo(0, 0);
+    };
+    vv?.addEventListener("scroll", keepPinned);
+    vv?.addEventListener("resize", keepPinned);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.width = previousWidth;
+      window.scrollTo(0, scrollY);
+      vv?.removeEventListener("scroll", keepPinned);
+      vv?.removeEventListener("resize", keepPinned);
+    };
+  }, [active]);
 }
 
 function formatLiveStarted(iso: string) {
@@ -124,7 +203,13 @@ export function LiveHostPanel({
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
+  const [facingMode, setFacingMode] = useState<CameraFacing>("user");
+  const [flipping, setFlipping] = useState(false);
   const viewerCount = useLivePresence(tenantSlug, session?.id, Boolean(session));
+  const immersive = Boolean(session);
+
+  useSetLiveImmersive(immersive);
+  useLiveBodyLock(immersive);
 
   useEffect(() => {
     return () => {
@@ -143,7 +228,8 @@ export function LiveHostPanel({
       await publisherRef.current?.stop();
       const publisher = new WhipPublisher(session.whipPublishUrl, videoRef.current);
       publisherRef.current = publisher;
-      await publisher.start();
+      await publisher.start(facingMode);
+      setFacingMode(publisher.getFacingMode());
       setCameraOn(true);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Couldn't reconnect the camera.");
@@ -163,7 +249,9 @@ export function LiveHostPanel({
         body: { title: title.trim(), ...(groupSlug ? { groupSlug } : {}) },
       });
 
-      setSession(result.session);
+      flushSync(() => {
+        setSession(result.session);
+      });
 
       if (!videoRef.current || !result.session.whipPublishUrl) {
         throw new Error("Missing camera element or publish URL");
@@ -171,12 +259,29 @@ export function LiveHostPanel({
 
       const publisher = new WhipPublisher(result.session.whipPublishUrl, videoRef.current);
       publisherRef.current = publisher;
-      await publisher.start();
+      await publisher.start(facingMode);
+      setFacingMode(publisher.getFacingMode());
       setCameraOn(true);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Couldn't go live. Try again.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleFlipCamera() {
+    if (!publisherRef.current || !cameraOn) return;
+    setFlipping(true);
+    setErrorMessage(null);
+    try {
+      await publisherRef.current.switchCamera();
+      setFacingMode(publisherRef.current.getFacingMode());
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Couldn't switch camera. Try again."
+      );
+    } finally {
+      setFlipping(false);
     }
   }
 
@@ -206,6 +311,88 @@ export function LiveHostPanel({
     }
   }
 
+  if (session) {
+    return (
+      <LiveFullscreenShell>
+        <LivePortraitVideo
+          videoRef={videoRef}
+          mirrored={facingMode === "user"}
+          muted
+        />
+
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/75" />
+
+        {!cameraOn && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/70 px-6 text-center">
+            <Radio className="h-8 w-8 text-white/50" />
+            <p className="text-sm text-white/70">
+              Stream is live — reconnect your camera to keep broadcasting
+            </p>
+          </div>
+        )}
+
+        <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-3 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <div className="min-w-0">
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="flex items-center gap-1.5 rounded-full bg-error-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                Live
+              </span>
+              <span className="truncate rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-medium text-white/85">
+                {scopeLabel}
+              </span>
+            </div>
+            <p className="truncate text-sm font-semibold text-white drop-shadow">{session.title}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <ViewerCountBadge count={viewerCount} />
+            {cameraOn && (
+              <button
+                type="button"
+                disabled={flipping || busy}
+                onClick={handleFlipCamera}
+                className="rounded-full bg-black/45 p-2 text-white disabled:opacity-50"
+                aria-label={facingMode === "user" ? "Switch to back camera" : "Switch to front camera"}
+              >
+                <SwitchCamera className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 z-20 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-col gap-2">
+            <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} overlay />
+            {!cameraOn && session.whipPublishUrl && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={resumeCamera}
+                className="rounded-full bg-primary-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {busy ? "Connecting..." : "Reconnect camera"}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleEndLive}
+              className="rounded-full bg-error-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {busy ? "Ending..." : "End live"}
+            </button>
+          </div>
+        </div>
+
+        {errorMessage && (
+          <div className="absolute inset-x-3 top-20 z-30 rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
+            {errorMessage}
+          </div>
+        )}
+      </LiveFullscreenShell>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <LiveStage>
@@ -215,25 +402,10 @@ export function LiveHostPanel({
           playsInline
           className="absolute inset-0 h-full w-full object-cover"
         />
-        {!cameraOn && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-950/85 px-6 text-center">
-            <Radio className="h-8 w-8 text-white/50" />
-            <p className="text-sm text-white/70">
-              {session
-                ? "Stream is live — reconnect your camera to keep broadcasting"
-                : "Camera preview appears when you go live"}
-            </p>
-          </div>
-        )}
-        {session && (
-          <div className="absolute left-3 right-3 top-3 z-10 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 rounded-full bg-black/55 px-2.5 py-1">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-error-600" />
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Live</span>
-            </div>
-            <ViewerCountBadge count={viewerCount} />
-          </div>
-        )}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-950/85 px-6 text-center">
+          <Radio className="h-8 w-8 text-white/50" />
+          <p className="text-sm text-white/70">Camera preview appears when you go live</p>
+        </div>
       </LiveStage>
 
       {errorMessage && (
@@ -242,56 +414,31 @@ export function LiveHostPanel({
         </div>
       )}
 
-      {!session ? (
-        <form onSubmit={handleGoLive} className="flex flex-col gap-3">
-          <p className="text-xs text-neutral-500">Going live for {scopeLabel}</p>
-          <input
-            required
-            minLength={2}
-            maxLength={255}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Live title (e.g. AGM updates)"
-            className="input"
-          />
-          <button
-            type="submit"
-            disabled={busy}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-error-600 px-4 py-3 text-sm font-medium text-white hover:bg-error-700 disabled:opacity-60"
-          >
-            <Radio className="h-4 w-4" />
-            {busy ? "Starting..." : "Go live"}
-          </button>
-        </form>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-neutral-900">{session.title}</p>
-          <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} compact />
-          {!cameraOn && session.whipPublishUrl && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={resumeCamera}
-              className="rounded-md bg-primary-600 px-4 py-3 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60"
-            >
-              {busy ? "Connecting..." : "Reconnect camera"}
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={handleEndLive}
-            className="rounded-md bg-error-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-error-700 disabled:opacity-60"
-          >
-            {busy ? "Ending..." : "End live"}
-          </button>
-        </div>
-      )}
+      <form onSubmit={handleGoLive} className="flex flex-col gap-3">
+        <p className="text-xs text-neutral-500">Going live for {scopeLabel}</p>
+        <input
+          required
+          minLength={2}
+          maxLength={255}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Live title (e.g. AGM updates)"
+          className="input"
+        />
+        <button
+          type="submit"
+          disabled={busy}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-error-600 px-4 py-3 text-sm font-medium text-white hover:bg-error-700 disabled:opacity-60"
+        >
+          <Radio className="h-4 w-4" />
+          {busy ? "Starting..." : "Go live"}
+        </button>
+      </form>
     </div>
   );
 }
 
-/** Admin/host control desk for an active live — preview + End live (no member Join lobby). */
+/** Admin/host control desk for an active live — fullscreen preview + End live. */
 export function LiveManagePanel({
   tenantSlug,
   groupSlug,
@@ -313,11 +460,15 @@ export function LiveManagePanel({
   const [previewReady, setPreviewReady] = useState(false);
   const viewerCount = useLivePresence(tenantSlug, session.id, true);
 
+  useSetLiveImmersive(true);
+  useLiveBodyLock(true);
+
   useEffect(() => {
     let cancelled = false;
 
     async function connectPreview() {
-      if (!videoRef.current) return;
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (cancelled || !videoRef.current) return;
       try {
         const player = new WhepPlayer(session.whepPlayUrl, videoRef.current);
         playerRef.current = player;
@@ -364,66 +515,62 @@ export function LiveManagePanel({
     : `/${tenantSlug}/live/host`;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-3">
-        <p className="text-sm font-semibold text-primary-800">You&rsquo;re in host controls</p>
-        <p className="mt-0.5 text-xs text-primary-700">
-          Members see a Join lobby. You can end the stream anytime from here.
-        </p>
+    <LiveFullscreenShell>
+      <LivePortraitVideo videoRef={videoRef} muted />
+
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/75" />
+
+      {!previewReady && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+          <p className="text-sm text-white/70">Loading preview...</p>
+        </div>
+      )}
+
+      <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-3 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="min-w-0">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="flex items-center gap-1.5 rounded-full bg-error-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              Live
+            </span>
+            <span className="truncate rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-medium text-white/85">
+              Host controls
+            </span>
+          </div>
+          <p className="truncate text-sm font-semibold text-white drop-shadow">{session.title}</p>
+          <p className="truncate text-[11px] text-white/70">{scopeLabel}</p>
+        </div>
+        <ViewerCountBadge count={viewerCount} />
       </div>
 
-      <LiveStage>
-        <video
-          ref={videoRef}
-          playsInline
-          autoPlay
-          muted
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        {!previewReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-950">
-            <p className="text-sm text-white/60">Loading preview...</p>
-          </div>
-        )}
-        <div className="absolute left-3 right-3 top-3 z-10 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 rounded-full bg-black/55 px-2.5 py-1">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-error-600" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-white">Live</span>
-          </div>
-          <ViewerCountBadge count={viewerCount} />
+      <div className="absolute inset-x-0 bottom-0 z-20 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="flex flex-col gap-2">
+          <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} overlay />
+          {isBroadcaster && (
+            <Link
+              href={hostHref}
+              className="rounded-full border border-white/30 bg-black/45 px-4 py-3 text-center text-sm font-semibold text-white"
+            >
+              Open camera desk
+            </Link>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={handleEndLive}
+            className="rounded-full bg-error-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busy ? "Ending live..." : "End live for everyone"}
+          </button>
         </div>
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-          <p className="text-sm font-semibold text-white">{session.title}</p>
-          <p className="text-[11px] text-white/70">{scopeLabel}</p>
-        </div>
-      </LiveStage>
+      </div>
 
       {errorMessage && (
-        <div className="rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
+        <div className="absolute inset-x-3 top-20 z-30 rounded-md border-l-4 border-error-600 bg-error-100 px-4 py-3 text-sm text-error-700">
           {errorMessage}
         </div>
       )}
-
-      <LiveChatPanel tenantSlug={tenantSlug} sessionId={session.id} compact />
-
-      {isBroadcaster && (
-        <Link
-          href={hostHref}
-          className="rounded-md border border-neutral-300 px-4 py-3 text-center text-sm font-medium text-neutral-800 hover:bg-neutral-100"
-        >
-          Open camera / broadcast desk
-        </Link>
-      )}
-
-      <button
-        type="button"
-        disabled={busy}
-        onClick={handleEndLive}
-        className="rounded-md bg-error-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-error-700 disabled:opacity-60"
-      >
-        {busy ? "Ending live..." : "End live for everyone"}
-      </button>
-    </div>
+    </LiveFullscreenShell>
   );
 }
 
@@ -464,6 +611,7 @@ export function LiveWatchPanel({
   const viewerCount = useLivePresence(tenantSlug, session.id, joined);
 
   useSetLiveImmersive(joined);
+  useLiveBodyLock(joined);
 
   // Lobby can see the count without joining the stream (read-only poll).
   useEffect(() => {
@@ -529,38 +677,6 @@ export function LiveWatchPanel({
       playerRef.current = null;
     };
   }, [joined, session.whepPlayUrl]);
-
-  useEffect(() => {
-    if (!joined) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousPosition = document.body.style.position;
-    const previousTop = document.body.style.top;
-    const previousWidth = document.body.style.width;
-    const scrollY = window.scrollY;
-
-    // Hard-lock the page so iOS keyboard cannot shove the live stage up.
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-
-    const vv = window.visualViewport;
-    const keepPinned = () => {
-      window.scrollTo(0, 0);
-    };
-    vv?.addEventListener("scroll", keepPinned);
-    vv?.addEventListener("resize", keepPinned);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.position = previousPosition;
-      document.body.style.top = previousTop;
-      document.body.style.width = previousWidth;
-      window.scrollTo(0, scrollY);
-      vv?.removeEventListener("scroll", keepPinned);
-      vv?.removeEventListener("resize", keepPinned);
-    };
-  }, [joined]);
 
   async function toggleLike() {
     setLiking(true);
@@ -655,14 +771,8 @@ export function LiveWatchPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden bg-black">
-      <video
-        ref={videoRef}
-        playsInline
-        autoPlay
-        muted
-        className="absolute inset-0 h-full w-full bg-black object-cover"
-      />
+    <LiveFullscreenShell>
+      <LivePortraitVideo videoRef={videoRef} muted={muted} />
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70" />
 
@@ -731,7 +841,7 @@ export function LiveWatchPanel({
           {errorMessage}
         </div>
       )}
-    </div>
+    </LiveFullscreenShell>
   );
 }
 
