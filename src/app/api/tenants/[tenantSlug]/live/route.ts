@@ -130,7 +130,22 @@ export async function POST(
     }
 
     const scopeLabel = hostAuth.group?.name ?? hostAuth.tenant.name;
-    const cf = await createCloudflareLiveInput(`${scopeLabel} — ${body.title}`.slice(0, 120));
+
+    let cf: Awaited<ReturnType<typeof createCloudflareLiveInput>>;
+    try {
+      cf = await createCloudflareLiveInput(`${scopeLabel} — ${body.title}`.slice(0, 120));
+    } catch (cfError) {
+      console.error("[live] Cloudflare create failed:", cfError);
+      return NextResponse.json(
+        {
+          error:
+            cfError instanceof Error
+              ? cfError.message
+              : "Couldn't create the Cloudflare live stream. Check Stream credentials on Vercel.",
+        },
+        { status: 502 }
+      );
+    }
 
     const [session] = await db
       .insert(liveSessions)

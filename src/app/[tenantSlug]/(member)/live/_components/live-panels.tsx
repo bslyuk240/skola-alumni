@@ -687,6 +687,7 @@ function LiveChatPanel({
   useEffect(() => {
     let cancelled = false;
     let inFlight = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
     seenIdsRef.current = new Set();
     lastStampRef.current = null;
     setComments([]);
@@ -711,18 +712,23 @@ function LiveChatPanel({
 
         if (fresh.length === 0) return;
         setComments((prev) => mergeComments(prev, fresh));
-      } catch {
-        // polling is best-effort
+      } catch (error) {
+        // Session ended / gone — stop hammering the API.
+        const message = error instanceof Error ? error.message : "";
+        if (/not found|ended|Access Denied/i.test(message)) {
+          cancelled = true;
+          if (timer) clearInterval(timer);
+        }
       } finally {
         inFlight = false;
       }
     }
 
     void pull();
-    const timer = setInterval(pull, 2000);
+    timer = setInterval(pull, 2000);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
     };
   }, [tenantSlug, sessionId]);
 

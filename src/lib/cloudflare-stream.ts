@@ -15,19 +15,36 @@ interface CloudflareApiResponse<T> {
 async function streamFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const { CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_STREAM_API_TOKEN } = getCloudflareStreamEnv();
 
+  const accountId = CLOUDFLARE_ACCOUNT_ID.trim().replace(/^["']|["']$/g, "");
+  const token = CLOUDFLARE_STREAM_API_TOKEN.trim().replace(/^["']|["']$/g, "");
+
+  if (!/^[a-f0-9]{32}$/i.test(accountId)) {
+    throw new Error(
+      "CLOUDFLARE_ACCOUNT_ID looks invalid. It should be the 32-character Account ID from the Cloudflare dashboard."
+    );
+  }
+
   const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}${path}`,
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}${path}`,
     {
       ...init,
       headers: {
-        Authorization: `Bearer ${CLOUDFLARE_STREAM_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         ...(init?.headers ?? {}),
       },
     }
   );
 
-  const body = (await response.json()) as CloudflareApiResponse<T>;
+  const raw = await response.text();
+  let body: CloudflareApiResponse<T> | null = null;
+  try {
+    body = JSON.parse(raw) as CloudflareApiResponse<T>;
+  } catch {
+    throw new Error(
+      `Cloudflare Stream returned a non-JSON response (${response.status}). Check CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN in Vercel — values must not include quotes or extra spaces.`
+    );
+  }
 
   if (!response.ok || !body.success || !body.result) {
     const message =
@@ -45,7 +62,6 @@ export async function createCloudflareLiveInput(name: string) {
     body: JSON.stringify({
       meta: { name },
       recording: { mode: "off" },
-      deleteRecordingAfterDays: null,
     }),
   });
 
